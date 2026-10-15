@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "for p in python3 python \"py -3\"; do if $p -c \"import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)\" >/dev/null 2>&1; then exec $p \"${CLAUDE_PLUGIN_ROOT}/hooks/snapshot.py\"; fi; done; echo '{\"systemMessage\":\"Snyk scan plugin: Python 3.9 or newer is required but was not found, so scans are off. Install Python 3 and restart Claude Code.\"}'; exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "for p in python3 python \"py -3\"; do if $p -c \"import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)\" >/dev/null 2>&1; then exec $p \"${CLAUDE_PLUGIN_ROOT}/hooks/scan.py\"; fi; done; echo '{\"systemMessage\":\"Snyk scan plugin: Python 3.9 or newer is required but was not found, so scans are off. Install Python 3 and restart Claude Code.\"}'; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

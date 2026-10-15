@@ -1,0 +1,91 @@
+[
+ {
+  "ok": false,
+  "displayTargetFile": "package-lock.json",
+  "vulnerabilities": [
+   {
+    "id": "SNYK-JS-LODASH-1",
+    "title": "Prototype Pollution",
+    "severity": "critical",
+    "packageName": "lodash",
+    "version": "4.17.0",
+    "fixedIn": [
+     "4.17.21"
+    ],
+    "from": [
+     "app@1.0.0",
+     "lodash@4.17.0"
+    ]
+   },
+   {
+    "id": "SNYK-JS-AXIOS-2",
+    "title": "Server-Side Request Forgery",
+    "severity": "high",
+    "packageName": "axios",
+    "version": "0.21.0",
+    "fixedIn": [
+     "0.21.1"
+    ],
+    "from": [
+     "app@1.0.0",
+     "axios@0.21.0"
+    ]
+   },
+   {
+    "id": "SNYK-JS-MINIMIST-3",
+    "title": "Prototype Pollution",
+    "severity": "medium",
+    "packageName": "minimist",
+    "version": "1.2.0",
+    "fixedIn": [
+     "1.2.6"
+    ],
+    "from": [
+     "app@1.0.0",
+     "minimist@1.2.0"
+    ]
+   },
+   {
+    "id": "SNYK-JS-A-4",
+    "title": "ReDoS",
+    "severity": "low",
+    "packageName": "a-pkg",
+    "version": "1.0.0",
+    "fixedIn": [],
+    "from": [
+     "app@1.0.0",
+     "a-pkg@1.0.0"
+    ]
+   },
+   {
+    "id": "SNYK-JS-B-5",
+    "title": "ReDoS",
+    "severity": "low",
+    "packageName": "b-pkg",
+    "version": "1.0.0",
+    "fixedIn": [],
+    "from": [
+     "app@1.0.0",
+     "b-pkg@1.0.0"
+    ]
+   },
+   {
+    "id": "SNYK-JS-C-6",
+    "title": "ReDoS",
+    "severity": "low",
+    "packageName": "c-pkg",
+    "version": "1.0.0",
+    "fixedIn": [],
+    "from": [
+     "app@1.0.0",
+     "c-pkg@1.0.0"
+    ]
+   }
+  ]
+ },
+ {
+  "ok": true,
+  "displayTargetFile": "sub/package-lock.json",
+  "vulnerabilities": []
+ }
+]

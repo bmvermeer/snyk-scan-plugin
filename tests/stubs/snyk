@@ -1,0 +1,18 @@
+#!/bin/sh
+if [ -n "$SNYK_STUB_LOG" ]; then
+  printf '%s\n' "$*" >> "$SNYK_STUB_LOG"
+fi
+if [ "$1" = "auth" ]; then
+  [ -n "$SNYK_STUB_AUTH_STDERR" ] && printf '%s\n' "$SNYK_STUB_AUTH_STDERR" >&2
+  code="${SNYK_STUB_AUTH_EXIT:-0}"
+  # A successful login "authenticates" later scans when SNYK_STUB_AUTHED_FILE is set.
+  [ "$code" = "0" ] && [ -n "$SNYK_STUB_AUTHED_FILE" ] && touch "$SNYK_STUB_AUTHED_FILE" 2>/dev/null
+  exit "$code"
+fi
+if [ -n "$SNYK_STUB_AUTHED_FILE" ] && [ ! -e "$SNYK_STUB_AUTHED_FILE" ]; then
+  printf '%s\n' "Authentication required (SNYK-0005)" >&2
+  exit 2
+fi
+[ -n "$SNYK_STUB_STDOUT" ] && printf '%s\n' "$SNYK_STUB_STDOUT"
+[ -n "$SNYK_STUB_STDERR" ] && printf '%s\n' "$SNYK_STUB_STDERR" >&2
+exit "${SNYK_STUB_EXIT:-0}"

@@ -1,0 +1,20 @@
+{
+ "ok": false,
+ "vulnerabilities": [
+  {
+   "id": "SNYK-JS-X-1",
+   "title": "Prototype Pollution",
+   "severity": "low",
+   "packageName": "x",
+   "version": "1.0.0",
+   "fixedIn": [
+    "1.0.1"
+   ],
+   "from": [
+    "app@1.0.0",
+    "x@1.0.0"
+   ]
+  }
+ ],
+ "displayTargetFile": "package.json"
+}

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0-test",
+  "assets": {
+    "snyk-macos": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-macos", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-macos.sha256"},
+    "snyk-macos-arm64": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-macos-arm64", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-macos-arm64.sha256"},
+    "snyk-linux": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-linux", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-linux.sha256"},
+    "snyk-linux-arm64": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-linux-arm64", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-linux-arm64.sha256"},
+    "snyk-alpine": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-alpine", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-alpine.sha256"},
+    "snyk-alpine-arm64": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-alpine-arm64", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-alpine-arm64.sha256"},
+    "snyk-win.exe": {"url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-win.exe", "sha256": "placeholder", "sha256Url": "https://downloads.snyk.io/cli/v1.0.0-test/snyk-win.exe.sha256"}
+  }
+}

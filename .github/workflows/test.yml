@@ -1,0 +1,33 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.x"]
+    steps:
+      # Keep LF line endings on Windows so the shell stub and fixtures are byte-identical.
+      - name: Disable git autocrlf
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # setup-python puts `python` on PATH on every runner OS (`python3` is not guaranteed on
+      # Windows), so CI uses `python`. It is the same module invocation as `python3 -m ...`.
+      - name: Run tests
+        run: python -m unittest discover
