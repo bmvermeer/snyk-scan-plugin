@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "error": "failed to get dependency graph: failed to get dependencies for all 1 potential projects.\n\nFailed to get dependencies for all 1 potential projects.\n\n/project/package.json:\nFailed to read /project/package.json. Error: Expected property name or '}' in JSON at position 2 (line 1 column 3)",
+  "path": "/project"
+}

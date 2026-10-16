@@ -98,6 +98,113 @@ class CommandsTest(ScanHookTest):
         self.assertEqual(cfg.mode, "autofix")
         self.assertEqual(cfg.warnings, [])
 
+
+    # REQ-50
+    def test_req_50_get_config_defaults(self):
+        r = self.helper("get-config")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("mode: report (default)", r.stdout)
+        self.assertIn("severityThreshold: low (default)", r.stdout)
+        self.assertIn("timeoutSeconds: 120 (default)", r.stdout)
+        self.assertFalse(os.path.exists(self.config_path()))
+
+    def test_req_50_get_config_shows_current_values(self):
+        self.write_config(mode="suggest", severityThreshold="high")
+        r = self.helper("get-config")
+        self.assertIn("mode: suggest\n", r.stdout + "\n")
+        self.assertNotIn("mode: suggest (default)", r.stdout)
+        self.assertIn("severityThreshold: high", r.stdout)
+        self.assertIn("timeoutSeconds: 120 (default)", r.stdout)
+
+    def test_req_50_set_config_writes_all_in_one_keeping_other_keys(self):
+        self.write_config(mode="report", other="keep")
+        r = self.helper("set-config", "--mode", "autofix", "--severity", "high", "--timeout", "45")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(self.read_config()),
+                         {"mode": "autofix", "severityThreshold": "high",
+                          "timeoutSeconds": 45, "other": "keep"})
+        self.assertEqual(os.listdir(os.path.join(self.project, ".claude")), ["snyk-plugin.json"])
+
+    def test_req_50_set_config_creates_file_and_partial_update(self):
+        self.helper("set-config", "--severity", "critical")
+        self.assertEqual(json.loads(self.read_config()), {"severityThreshold": "critical"})
+        self.helper("set-config", "--mode", "suggest")
+        self.assertEqual(json.loads(self.read_config()),
+                         {"severityThreshold": "critical", "mode": "suggest"})
+
+    def test_req_50_set_config_invalid_value_writes_nothing_and_names_it(self):
+        self.write_config(mode="suggest")
+        before = self.read_config()
+        for args, word in ((("--mode", "yolo"), "mode"), (("--severity", "severe"), "severityThreshold"),
+                           (("--timeout", "0"), "timeoutSeconds"), (("--timeout", "-5"), "timeoutSeconds"),
+                           (("--timeout", "abc"), "timeoutSeconds"), (("--timeout", "1.5"), "timeoutSeconds")):
+            r = self.helper("set-config", "--mode", "autofix", *args)
+            self.assertEqual(self.read_config(), before, args)
+            self.assertIn(word, r.stdout)
+            self.assertIn("unchanged", r.stdout)
+
+    def test_req_50_set_config_invalid_creates_no_file(self):
+        self.helper("set-config", "--mode", "report", "--timeout", "nope")
+        self.assertFalse(os.path.exists(os.path.join(self.project, ".claude")))
+
+    def test_req_50_set_config_nothing_given_writes_nothing(self):
+        self.helper("set-config")
+        self.assertFalse(os.path.exists(self.config_path()))
+
+    def test_req_50_set_config_broken_config_not_destroyed(self):
+        self.write(".claude/snyk-plugin.json", "{ not json")
+        self.helper("set-config", "--mode", "suggest")
+        self.assertEqual(self.read_config(), "{ not json")
+
+    def test_req_50_set_config_result_loads_cleanly(self):
+        sys.path.insert(0, os.path.join(ROOT, "hooks"))
+        from lib import config
+        self.helper("set-config", "--mode", "suggest", "--severity", "medium", "--timeout", "30")
+        cfg = config.load(self.project)
+        self.assertEqual((cfg.mode, cfg.severity_threshold, cfg.timeout_seconds, cfg.warnings),
+                         ("suggest", "medium", 30, []))
+
+    def test_req_50_no_value_set_mode_still_writes_nothing(self):
+        self.helper("set-mode")
+        self.assertFalse(os.path.exists(self.config_path()))
+
+    # REQ-51
+    def test_req_51_scan_states_mode_and_snyk_mode_every_run(self):
+        for _ in range(2):
+            r = self.helper("scan", SNYK_STUB_EXIT="0")
+            self.assertIn("Current mode: report", r.stdout)
+            self.assertIn("/snyk-mode", r.stdout)
+
+    def test_req_51_scan_shows_configured_mode_and_runs_same_scans(self):
+        for mode in ("report", "suggest", "autofix"):
+            self.write_config(mode=mode)
+            r = self.helper("scan", SNYK_STUB_EXIT="0")
+            self.assertIn("Current mode: %s" % mode, r.stdout)
+            self.assertIn("SAST: no issues", r.stdout)
+            self.assertIn("SCA: no issues", r.stdout)
+            self.assertNotIn("decision", r.stdout)
+
+    def test_req_51_mode_line_outside_untrusted_block_and_state_untouched(self):
+        before = self.session_state()
+        r = self.helper("scan", SNYK_STUB_EXIT="1", SNYK_STUB_STDOUT=fixture("sast_findings.json"))
+        self.assertIn("untrusted", r.stdout)
+        last = r.stdout.rstrip().splitlines()[-1]
+        self.assertIn("Current mode: report", last)
+        self.assertEqual(r.stdout.count("Current mode:"), 1)
+        self.assertEqual(self.session_state(), before)
+
+    def test_req_51_scan_failure_still_shows_mode(self):
+        r = self.helper("scan", SNYK_STUB_EXIT="2")
+        self.assertNotIn("no issues", r.stdout)
+        self.assertIn("Current mode: report", r.stdout)
+
+    def test_req_51_stop_hook_output_has_no_mode_line(self):
+        self.write("app.py", "# old\n")
+        self.snapshot()
+        self.write("app.py", "print('a longer line')\n")
+        r = self.stop(SNYK_STUB_EXIT="0")
+        self.assertNotIn("Current mode:", self.message(r))
+
     # REQ-47
     def test_req_47_scan_runs_both_without_changes(self):
         r = self.helper("scan", SNYK_STUB_EXIT="0")
@@ -165,6 +272,14 @@ class CommandFilesTest(unittest.TestCase):
         self.assertIn("set-mode", text)
         self.assertIn("$ARGUMENTS", text)
         self.assertIn("${CLAUDE_PLUGIN_ROOT}", text)
+
+    def test_req_50_command_file_interview(self):
+        text = self.read("snyk-mode.md")
+        self.assertIn("get-config", text)
+        self.assertIn("set-config", text)
+        self.assertIn("AskUserQuestion", self.frontmatter(text)["allowed-tools"])
+        for word in ("severityThreshold", "timeoutSeconds", "one question at a time", "keep"):
+            self.assertIn(word, text)
 
     def test_req_47_command_file_snyk_scan(self):
         text = self.read("snyk-scan.md")

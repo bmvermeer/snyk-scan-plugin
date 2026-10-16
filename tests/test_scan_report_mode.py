@@ -58,6 +58,12 @@ class ScanHookTest(unittest.TestCase):
     def stop(self, active=False, **extra):
         return self.hook(SCAN, "Stop", active, **extra)
 
+    def helper(self, *args, **extra):
+        cmd = [sys.executable, os.path.join(ROOT, "hooks", "helper.py"), "--session", self.session,
+               "--project", self.project]
+        return subprocess.run(cmd + list(args), capture_output=True, text=True,
+                              env=self.env(**extra), timeout=60)
+
     def calls(self):
         if not os.path.exists(self.log):
             return []

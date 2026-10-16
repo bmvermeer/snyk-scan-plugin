@@ -5,12 +5,14 @@ import os
 import shutil
 import sys
 import tempfile
+import platform as _plat
 import unittest
 import urllib.request
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
-from lib import cli, standalone  # noqa: E402
+from lib import cli, install, standalone  # noqa: E402
 
 with open(os.path.join(ROOT, "tests", "fixtures", "release.json"), encoding="utf-8") as _f:
     RELEASE = _f.read()
@@ -203,6 +205,85 @@ class StandaloneTest(unittest.TestCase):
         from lib import install
         f = install.install_standalone(env={"SNYK_SCAN_PLUGIN_NO_STANDALONE": "1"})
         self.assertIn("disabled", f.reason)
+
+
+@unittest.skipIf(os.name == "nt", "uses the sh snyk stub as the downloaded binary")
+class InstallChainTest(unittest.TestCase):
+    """REQ-16: npm and brew fail or are absent, so the standalone binary is installed."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(ROOT, "tests"))
+        import test_install as ti
+        self.ti = ti
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.bin = os.path.join(self.tmp, "bin")
+        self.home = os.path.join(self.tmp, "home")
+        self.empty = os.path.join(self.tmp, "empty")
+        for d in (self.bin, self.home, self.empty):
+            os.makedirs(d)
+        self.ilog = os.path.join(self.tmp, "install.log")
+        for n in ("npm", "brew"):
+            ti.make_stub(self.bin, n)
+        with open(os.path.join(ROOT, "tests", "stubs", "snyk"), "rb") as f:
+            self.binary = f.read()
+        self.name = standalone.asset_name(sys.platform, _plat.machine(),
+                                          sys.platform.startswith("linux") and standalone.is_musl())
+        self.env = dict(os.environ, HOME=self.home, USERPROFILE=self.home, LOCALAPPDATA=self.home,
+                        PATH=os.pathsep.join([self.bin, self.empty]), INSTALL_LOG=self.ilog)
+        self.env.pop("SNYK_SCAN_PLUGIN_NO_STANDALONE", None)
+        self.env.pop("SNYK_TOKEN", None)
+
+    def installs(self):
+        if not os.path.exists(self.ilog):
+            return []
+        with open(self.ilog, encoding="utf-8") as f:
+            return [l.strip() for l in f if l.strip()]
+
+    def run_chain(self, **extra):
+        self.op = FakeOpener(bodies_for(self.name, binary=self.binary))
+        self.env.update(extra)
+        with mock.patch.object(standalone, "RestrictedOpener", lambda: self.op):
+            return install.run_install(env=self.env, platform=sys.platform)
+
+    def test_req_16_npm_and_brew_fail_then_standalone_is_installed_and_runs(self):
+        out = self.run_chain(NPM_EXIT="1", BREW_EXIT="1")
+        self.assertTrue(out.ok)
+        self.assertEqual(out.method, "standalone")
+        self.assertEqual(self.installs(), ["npm install -g snyk", "brew install snyk-cli"])
+        self.assertEqual([f.method for f in out.failures], ["npm install -g snyk", "brew install snyk-cli"])
+        self.assertEqual(self.op.requested[0], standalone.RELEASE_URL)
+        rel = json.loads(RELEASE)["assets"][self.name]
+        self.assertIn(rel["url"], self.op.requested)
+        self.assertIn(rel["sha256Url"], self.op.requested)  # checksum was fetched and verified
+        dest = cli.standalone_path(home=self.home, env=self.env)
+        with open(dest, "rb") as f:
+            self.assertEqual(f.read(), self.binary)
+        self.assertEqual(cli.find_snyk(env=self.env, home=self.home), dest)
+        # the installed binary is the one a retried scan would run
+        import subprocess
+        r = subprocess.run([dest, "code", "test", "--json"], env=dict(self.env, SNYK_STUB_EXIT="0"),
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0)
+
+    def test_req_16_checksum_mismatch_in_chain_is_a_listed_failure(self):
+        self.op = FakeOpener(bodies_for(self.name, binary=self.binary, checksum="0" * 64))
+        with mock.patch.object(standalone, "RestrictedOpener", lambda: self.op):
+            out = install.run_install(env=dict(self.env, NPM_EXIT="1", BREW_EXIT="1"), platform=sys.platform)
+        self.assertFalse(out.ok)
+        self.assertEqual(out.failures[-1].method, "standalone binary")
+        self.assertFalse(os.path.exists(cli.standalone_path(home=self.home, env=self.env)))
+
+    def test_req_16_npm_success_never_contacts_standalone(self):
+        inst = os.path.join(self.tmp, "inst")
+        os.makedirs(inst)
+        src = os.path.join(ROOT, "tests", "stubs", "snyk")
+        out = self.run_chain(NPM_EXIT="0", INSTALL_SNYK="1", INST_DIR=inst, SNYK_STUB_SRC=src,
+                             PATH=os.pathsep.join([self.bin, inst, self.empty]))
+        self.assertTrue(out.ok)
+        self.assertEqual(out.method, "npm")
+        self.assertEqual(self.op.requested, [])
+        self.assertEqual(self.installs(), ["npm install -g snyk"])
 
 
 if __name__ == "__main__":

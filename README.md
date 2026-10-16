@@ -40,8 +40,9 @@ With no `.claude/snyk-plugin.json`, the mode is `report` and the output says onc
 
 ## Commands
 
-- `/snyk-mode <report|suggest|autofix>` writes the mode to `.claude/snyk-plugin.json`, keeping any other keys in the file. An invalid or missing value leaves the file unchanged and lists the valid modes. If the file exists but is not a JSON object, it is not overwritten.
-- `/snyk-scan` runs both SAST and SCA now, whatever changed. It prints the report and never continues the turn, so in `suggest` and `autofix` mode it behaves like `report` mode.
+- `/snyk-mode <report|suggest|autofix>` writes the mode to `.claude/snyk-plugin.json`, keeping any other keys in the file. An invalid value leaves the file unchanged and lists the valid modes. If the file exists but is not a JSON object, it is not overwritten.
+- `/snyk-mode` with no value is an interview. Claude shows the current values, then asks one question at a time for `mode`, `severityThreshold` (`low`, `medium`, `high`, `critical`) and `timeoutSeconds` (a positive whole number). Each question shows the current value and what the options mean, and you can keep the current value. After the last answer all values are written in one step, keeping any other keys. An invalid value is not written and you are told which one and why. If you stop before the end, nothing is written.
+- `/snyk-scan` runs both SAST and SCA now, whatever changed. It prints the report and never continues the turn, so in `suggest` and `autofix` mode it behaves like `report` mode. Every run ends with a line stating the current mode and that `/snyk-mode` changes it (this is separate from the once-per-session hint above).
 
 ## Configuration
 

@@ -32,6 +32,7 @@ echo {name} %*>>"%INSTALL_LOG%"
 if "%{upper}_EXIT%"=="" (set CODE=0) else (set CODE=%{upper}_EXIT%)
 if "%CODE%"=="0" (
   if "%INSTALL_SNYK%"=="1" copy /Y "%SNYK_STUB_SRC%" "%INST_DIR%\\snyk.cmd" >nul
+  if "%INSTALL_SNYK%"=="1" for %%F in ("%SNYK_STUB_SRC%") do copy /Y "%%~dpFsnyk_stub.py" "%INST_DIR%\\snyk_stub.py" >nul
   exit /b 0
 )
 echo {name} failed badly 1>&2

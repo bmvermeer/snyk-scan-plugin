@@ -4,6 +4,7 @@ Never reads, stores, or logs the Snyk token or the CLI auth config (REQ-26).
 Scan output is untrusted data; this module only classifies it.
 """
 import collections
+import json
 import os
 import signal
 import subprocess
@@ -109,6 +110,17 @@ def _first_line(*texts):
     return ""
 
 
+def _json_error(text):
+    """First line of the "error" field when the CLI printed a JSON error object (--json)."""
+    try:
+        data = json.loads(text or "")
+    except ValueError:
+        return ""
+    if isinstance(data, dict) and isinstance(data.get("error"), str):
+        return _first_line(data["error"])
+    return ""
+
+
 def _contains(table, text):
     low = text.lower()
     return any(s.lower() in low for s in table)
@@ -128,7 +140,7 @@ def classify(kind, exit_code, stdout, stderr):
     if kind == "sast" and _contains(CODE_DISABLED_ERRORS, combined):
         return Result(CODE_DISABLED, exit_code, stdout, stderr,
                       "Snyk Code is not enabled for your organization")
-    reason = _first_line(stderr, stdout) or "exit code %s" % exit_code
+    reason = _first_line(stderr) or _json_error(stdout) or _first_line(stdout) or "exit code %s" % exit_code
     status = FAILED if exit_code == 2 else UNKNOWN_ERROR
     return Result(status, exit_code, stdout, stderr, "scan failed: " + reason)
 

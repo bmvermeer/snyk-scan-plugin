@@ -23,7 +23,7 @@ Commands (run from the repo root):
 
 Files in `specs/`, in order of authority:
 
-- `specs/spec.md`: source of truth (draft v2, requirements REQ-1 to REQ-49, decisions, open questions).
+- `specs/spec.md`: source of truth (draft v2, requirements REQ-1 to REQ-51, decisions, open questions).
 - `specs/plan.md`: approach, components, REQ coverage, and the T1 hook-runtime note.
 - `specs/tasks.md`: ordered tasks, one at a time. Mark a task done only when its verification passes.
 

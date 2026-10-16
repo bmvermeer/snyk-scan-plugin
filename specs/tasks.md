@@ -94,7 +94,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Acceptance: The whole suite passes on Windows. The launcher prints the Python 3 required message when Python is missing and does not block the turn.
   - Verify: full suite on a Windows machine, `test_req_45_*`.
   - Files: `hooks/hooks.json`, fixes found in any module
-  - Note: code side done on macOS; Windows run pending (T14 CI). Added launcher with REQ-45 message, `lib/where.py` (no cwd lookup), UTF-8 stdio, state.save retry, forward-slash helper paths. First CI run failed on Windows only (29 failures, 8 errors). Likely cause: tests/stubs/snyk.cmd had LF endings (autocrlf false), which breaks cmd.exe label/goto handling. Fixes: `.gitattributes` forces CRLF for .cmd/.bat, stub rewritten with flat goto flow, install test stubs written CRLF on Windows, tests made OS-aware (npm.cmd/brew.cmd removal, forward-slash helper path). Open: REQ-4 10k-file timing was 0.696s on the Windows runner, not changed. Verification needs a green Windows CI run.
+  - Note: code side done on macOS; Windows run pending (T14 CI). Added launcher with REQ-45 message, `lib/where.py` (no cwd lookup), UTF-8 stdio, state.save retry, forward-slash helper paths. First CI run failed on Windows only (29 failures, 8 errors). Likely cause: tests/stubs/snyk.cmd had LF endings (autocrlf false), which breaks cmd.exe label/goto handling. Fixes: `.gitattributes` forces CRLF for .cmd/.bat, stub rewritten with flat goto flow, install test stubs written CRLF on Windows, tests made OS-aware (npm.cmd/brew.cmd removal, forward-slash helper path). Open: REQ-4 10k-file timing was 0.696s on the Windows runner, not changed. Second CI run: 13 Windows failures left, caused by cmd.exe `echo` mangling scripted stdout/stderr (JSON with special chars, 'ECHO is off.'). snyk.cmd now delegates to `tests/stubs/snyk_stub.py` (same SNYK_STUB_* contract as the sh stub), so cmd never echoes scripted text; the install test copies the .py next to the copied snyk.cmd. Verification needs a green Windows CI run.
 
 - [ ] **T14: GitHub Actions workflow**
   - Satisfies: REQ-44 (cross-OS verification)
@@ -125,3 +125,11 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Acceptance: With a real Snyk account: a source edit gives a SAST result, a lockfile edit gives an SCA result only, and a machine with no CLI or login reaches a first scan on approvals alone. Version is `0.1.0` in `plugin.json`.
   - Verify: Recorded manual run on macOS, Linux, and Windows.
   - Files: none
+
+- [x] **T18: Usability: `/snyk-mode` interview and mode line in `/snyk-scan`**
+  - Satisfies: REQ-46 (amended), REQ-50, REQ-51
+  - Depends on: T12
+  - Acceptance: `/snyk-mode` with no value interviews the user for mode, severity threshold and timeout and writes them in one step, keeping other keys, writing nothing on abort or invalid input. `/snyk-scan` output states the current mode and that `/snyk-mode` changes it, on every run. README updated.
+  - Verify: `test_req_46_*`, `test_req_50_*`, `test_req_51_*`; full suite green.
+  - Files: `commands/snyk-mode.md`, `commands/snyk-scan.md`, `hooks/helper.py`, `tests/test_commands.py`, `README.md`
+  - Note: done. New helper subcommands `get-config` and `set-config --mode/--severity/--timeout`; the interview uses `AskUserQuestion` (falls back to plain text). The `/snyk-scan` mode line is appended in `cmd_scan` after the untrusted blocks. Untested on a real Claude session and on Windows (Git Bash quoting as for the other commands).

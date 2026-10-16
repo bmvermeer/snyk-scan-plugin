@@ -83,52 +83,54 @@ Not from a fresh run. Re-read `hooks/hooks.json`, `hooks/scan.py`, `hooks/snapsh
 ## Requirement coverage
 | REQ | Covered by | Verified by |
 |-----|------------|-------------|
-| REQ-1 | files.py, scan.py | test_req_01_source_change_runs_sast_once |
-| REQ-2 | files.py, scan.py, cli.py | test_req_02_dependency_change_runs_sca_all_projects |
-| REQ-3 | baseline.py, scan.py | test_req_03_no_change_silent |
-| REQ-4 | baseline.py | test_req_04_overhead_under_500ms_10k_files |
-| REQ-5 | scan.py | test_req_05_deps_only_no_sast |
-| REQ-6 | scan.py | test_req_06_source_only_no_sca |
-| REQ-7 | baseline.py | test_req_07_git_and_fallback_file_sets |
-| REQ-8 | baseline.py, scan.py | test_req_08_missing_baseline |
-| REQ-9 | state.py | test_req_09_state_in_temp_not_project |
-| REQ-10 | scan.py, baseline.py | test_req_10_rebaseline_after_autofix |
-| REQ-11 | scan.py | test_req_11_no_scan_on_own_continuation |
-| REQ-12 | scan.py, helper.py | test_req_12_install_needs_approval |
-| REQ-13 | state.py, helper.py | test_req_13_install_declined_not_asked_again |
-| REQ-14 | install.py | test_req_14_npm_first |
-| REQ-15 | install.py | test_req_15_brew_fallback |
-| REQ-16 | install.py | test_req_16_standalone_fallback |
-| REQ-17 | install.py | test_req_17_all_methods_fail |
-| REQ-18 | install.py | test_req_18_release_json_asset_and_host_restriction |
-| REQ-19 | install.py | test_req_19_checksum_mismatch_deletes_file |
-| REQ-20 | cli.py, install.py | test_req_20_unix_standalone_path_found |
-| REQ-21 | cli.py, install.py | test_req_21_windows_standalone_path_found |
-| REQ-22 | install.py | test_req_22_no_asset_or_bad_release_json |
-| REQ-23 | cli.py, scan.py | test_req_23_auth_needs_approval |
-| REQ-24 | helper.py, cli.py | test_req_24_auth_then_retry_once |
-| REQ-25 | helper.py, state.py | test_req_25_auth_declined_or_failed |
-| REQ-26 | all modules | test_req_26_no_token_access (scan of source and output) |
-| REQ-27 | cli.py, scan.py | test_req_27_snyk_code_disabled_sca_still_runs |
-| REQ-28 | cli.py | test_req_28_unrecognised_error_generic |
-| REQ-29 | cli.py | test_req_29_timeout_kills_scan |
-| REQ-30 | cli.py, report.py | test_req_30_exit_2_and_3 |
-| REQ-31 | report.py | test_req_31_exit_0_one_line |
-| REQ-32 | report.py | test_req_32_all_below_threshold |
-| REQ-33 | cli.py | test_req_33_args_are_list_no_shell |
-| REQ-34 | report.py | test_req_34_output_marked_untrusted |
-| REQ-35 | config.py, state.py | test_req_35_default_report_hint_once |
-| REQ-36 | report.py, scan.py | test_req_36_report_summary_top5_ends_turn |
-| REQ-37 | report.py, scan.py | test_req_37_suggest_continues_no_edit |
-| REQ-38 | scan.py, SKILL.md | test_req_38_autofix_continues |
-| REQ-39 | SKILL.md, report.py | test_req_39_autofix_only_named_locations |
-| REQ-40 | scan.py | test_req_40_rescan_only_scans_with_findings_once |
-| REQ-41 | report.py | test_req_41_fixed_and_remaining_reported |
-| REQ-42 | config.py | test_req_42_invalid_config_falls_back |
-| REQ-43 | scan.py | test_req_43_skip_fail_timeout_never_continue |
-| REQ-44 | all modules, CI | full suite on three OS runners |
-| REQ-45 | hooks.json launcher | test_req_45_python_missing_message |
-| REQ-46 | helper.py, snyk-mode.md | test_req_46_set_mode_valid_invalid |
-| REQ-47 | scan.py, snyk-scan.md | test_req_47_forced_scan |
-| REQ-48 | config.py, cli.py | test_req_48_timeout_config |
-| REQ-49 | config.py, report.py | test_req_49_severity_threshold |
+| REQ-1 | files.py, scan.py | `test_req_01_source_extensions`, `test_req_01_source_change_runs_sast_once` |
+| REQ-2 | files.py, scan.py, cli.py | `test_req_02_dependency_names`, `test_req_02_dependency_change_runs_sca_all_projects` |
+| REQ-3 | baseline.py, scan.py | `test_req_03_no_change_is_empty`, `test_req_03_no_change_silent` |
+| REQ-4 | baseline.py | `test_req_04_overhead_under_500ms_10k_files`, `test_req_04_git_repo_10k_files` |
+| REQ-5 | scan.py | `test_req_05_deps_only_no_sast` |
+| REQ-6 | scan.py | `test_req_06_source_only_no_sca` |
+| REQ-7 | baseline.py | `test_req_07_fallback_exclusions`, `test_req_07_git_tracked_and_untracked_not_ignored` |
+| REQ-8 | baseline.py, scan.py | `test_req_08_missing_baseline` |
+| REQ-9 | state.py | `test_req_09_state_in_temp_not_project`, `test_req_09_snapshot_silent_and_writes_only_temp` |
+| REQ-10 | scan.py, baseline.py | `test_req_10_11_40_no_loop_under_autofix`, `test_req_10_rebaseline_even_without_snapshot` |
+| REQ-11 | scan.py | `test_req_11_unknown_active_stop_scans_nothing`, `test_req_11_no_scan_on_own_continuation` |
+| REQ-12 | scan.py, helper.py | `test_req_12_missing_cli_continues_turn_to_ask_and_installs_nothing`, `test_req_12_reason_embeds_absolute_helper_commands` |
+| REQ-13 | state.py, helper.py | `test_req_13_install_declined_skips_and_is_not_asked_again`, `test_req_13_declined_state_survives_new_turn` |
+| REQ-14 | install.py | `test_req_14_approval_runs_npm_first_and_retries_scan`, `test_req_14_retry_reports_findings_as_untrusted` |
+| REQ-15 | install.py | `test_req_15_npm_failure_falls_back_to_brew`, `test_req_15_npm_missing_falls_back_to_brew` |
+| REQ-16 | install.py | `test_req_16_npm_and_brew_fail_then_standalone_is_installed_and_runs`, `test_req_16_checksum_mismatch_in_chain_is_a_listed_failure` |
+| REQ-17 | install.py | `test_req_17_all_failures_listed_and_scan_skipped`, `test_req_17_failed_install_is_not_asked_again` |
+| REQ-18 | install.py | `test_req_18_asset_selection_per_os_and_cpu`, `test_req_18_alpine_detection` |
+| REQ-19 | install.py | `test_req_19_checksum_mismatch_deletes_file`, `test_req_19_mismatch_keeps_an_existing_good_install` |
+| REQ-20 | cli.py, install.py | `test_req_20_standalone_path_posix`, `test_req_20_finds_on_path` |
+| REQ-21 | cli.py, install.py | `test_req_21_standalone_path_windows`, `test_req_21_finds_standalone_without_path_windows` |
+| REQ-22 | install.py | `test_req_22_no_matching_asset`, `test_req_22_release_json_unreachable_or_unparseable` |
+| REQ-23 | cli.py, scan.py | `test_req_23_not_authenticated_continues_turn_to_ask_and_runs_no_auth`, `test_req_23_reason_embeds_absolute_helper_commands` |
+| REQ-24 | helper.py, cli.py | `test_req_24_approval_runs_auth_then_retries_scan_once`, `test_req_24_retry_reports_findings_as_untrusted` |
+| REQ-25 | helper.py, state.py | `test_req_25_decline_names_reason_and_is_not_asked_again`, `test_req_25_declined_state_survives_new_turn` |
+| REQ-26 | all modules | `test_req_26_token_not_echoed_or_passed_on_the_command_line`, `test_req_26_source_does_not_touch_token_or_auth_config` |
+| REQ-27 | cli.py, scan.py | `test_req_27_known_code_disabled_strings`, `test_req_27_code_disabled_only_for_sast` |
+| REQ-28 | cli.py | `test_req_28_unknown_error_first_line`, `test_req_28_unknown_error_no_text` |
+| REQ-29 | cli.py | `test_req_29_timeout_kills_and_reports`, `test_req_29_timed_out` |
+| REQ-30 | cli.py, report.py | `test_req_30_exit_2_failed`, `test_req_30_exit_3_nothing_to_scan` |
+| REQ-31 | report.py | `test_req_31_sast_no_issues`, `test_req_31_sca_no_issues` |
+| REQ-32 | report.py | `test_req_32_all_below_threshold`, `test_req_32_sast_below_threshold` |
+| REQ-33 | cli.py | `test_req_33_args_are_lists`, `test_req_33_no_shell` |
+| REQ-34 | report.py | `test_req_34_hostile_sast`, `test_req_34_hostile_sca` |
+| REQ-35 | config.py, state.py | `test_req_35_default_report_no_file`, `test_req_35_hint_once_per_session_without_config` |
+| REQ-36 | report.py, scan.py | `test_req_36_counts_by_severity`, `test_req_36_top_5_ranked` |
+| REQ-37 | report.py, scan.py | `test_req_37_suggest_continues_with_summary_and_no_edit_instruction`, `test_req_37_suggest_continuation_runs_nothing` |
+| REQ-38 | scan.py, SKILL.md | `test_req_38_autofix_continues_with_full_output_as_untrusted_data`, `test_req_38_autofix_hostile_output_cannot_close_wrapper` |
+| REQ-39 | SKILL.md, report.py | `test_req_39_autofix_instruction_limits_edits_to_named_locations` |
+| REQ-40 | scan.py | `test_req_40_rescan_only_scans_that_had_findings` |
+| REQ-41 | report.py | `test_req_41_fixed_and_remaining`, `test_req_41_reports_fixed_and_remaining` |
+| REQ-42 | config.py | `test_req_42_broken_json`, `test_req_42_unknown_mode` |
+| REQ-43 | scan.py | `test_req_43_failed_scan_never_continues_in_suggest_or_autofix`, `test_req_43_timeout_never_continues_in_autofix` |
+| REQ-44 | all modules, CI | `test_req_44_which_ignores_cwd_on_windows`, `test_req_44_which_skips_relative_path_entries_on_windows` |
+| REQ-45 | hooks.json launcher | `test_req_45_python_missing_message`, `test_req_45_unusable_python_is_skipped` |
+| REQ-46 | helper.py, snyk-mode.md | `test_req_46_valid_mode_creates_config_and_dir`, `test_req_46_preserves_other_keys` |
+| REQ-47 | scan.py, snyk-scan.md | `test_req_47_scan_runs_both_without_changes`, `test_req_47_scan_reports_findings_as_untrusted` |
+| REQ-48 | config.py, cli.py | `test_req_48_timeout` |
+| REQ-49 | config.py, report.py | `test_req_49_threshold`, `test_req_49_threshold_excludes_lower` |
+| REQ-50 | commands/snyk-mode.md, helper.py, config.py | `test_req_50_get_config_defaults`, `test_req_50_get_config_shows_current_values` |
+| REQ-51 | helper.py (cmd_scan), report.py | `test_req_51_scan_states_mode_and_snyk_mode_every_run`, `test_req_51_scan_shows_configured_mode_and_runs_same_scans` |

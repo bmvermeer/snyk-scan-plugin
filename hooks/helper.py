@@ -5,6 +5,8 @@
     helper.py [--session ID] [--project DIR] decline <install|auth>
 
     helper.py [--session ID] [--project DIR] set-mode [report|suggest|autofix]   (/snyk-mode)
+    helper.py [--session ID] [--project DIR] get-config                          (/snyk-mode interview)
+    helper.py [--session ID] [--project DIR] set-config [--mode M] [--severity S] [--timeout N]
     helper.py [--session ID] [--project DIR] scan                                (/snyk-scan)
 
 Output goes to stdout for Claude; it never raises.
@@ -97,7 +99,13 @@ def cmd_set_mode(args):
     if mode not in config.MODES:
         shown = "no mode given" if mode is None else "unknown mode %r" % mode
         return "%s. Valid modes: %s. %s is unchanged." % (shown, valid, config.CONFIG_PATH)
-    path = os.path.join(args.project, config.CONFIG_PATH)
+    err = _write_config(args.project, {"mode": mode}, "mode was not set", "/snyk-mode")
+    return err or "Snyk mode set to %s in %s." % (mode, config.CONFIG_PATH)
+
+
+def _write_config(project, updates, what, rerun):
+    """Merge updates into the config file in one atomic write. Returns an error text or None."""
+    path = os.path.join(project, config.CONFIG_PATH)
     data = {}
     if os.path.lexists(path):
         try:
@@ -106,9 +114,9 @@ def cmd_set_mode(args):
             if not isinstance(data, dict):
                 raise ValueError("not a JSON object")
         except (OSError, ValueError) as e:
-            return ("%s exists but cannot be used (%s). It is unchanged, mode was not set. "
-                    "Fix or delete the file, then run /snyk-mode again." % (config.CONFIG_PATH, e))
-    data["mode"] = mode
+            return ("%s exists but cannot be used (%s). It is unchanged, %s. "
+                    "Fix or delete the file, then run %s again." % (config.CONFIG_PATH, e, what, rerun))
+    data.update(updates)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = "%s.%d.tmp" % (path, os.getpid())
     try:
@@ -119,7 +127,59 @@ def cmd_set_mode(args):
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
-    return "Snyk mode set to %s in %s." % (mode, config.CONFIG_PATH)
+    return None
+
+
+def cmd_get_config(args):
+    """/snyk-mode interview (REQ-50): print the current values. Read-only, reads no auth config."""
+    cfg = config.load(args.project)
+    raw = {}
+    try:
+        with open(os.path.join(args.project, config.CONFIG_PATH), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        raw = data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        pass
+
+    def line(key, value):
+        return "%s: %s%s" % (key, value, "" if raw.get(key) == value else " (default)")
+
+    lines = [line("mode", cfg.mode),
+             line("severityThreshold", cfg.severity_threshold),
+             line("timeoutSeconds", cfg.timeout_seconds)]
+    return "\n".join(lines + cfg.warnings)
+
+
+def cmd_set_config(args):
+    """/snyk-mode interview (REQ-50): validate every answer, then write all in one step."""
+    updates, problems = {}, []
+    if args.mode is not None:
+        if args.mode in config.MODES:
+            updates["mode"] = args.mode
+        else:
+            problems.append("mode %r is not one of %s" % (args.mode, ", ".join(config.MODES)))
+    if args.severity is not None:
+        if args.severity in config.SEVERITIES:
+            updates["severityThreshold"] = args.severity
+        else:
+            problems.append("severityThreshold %r is not one of %s"
+                            % (args.severity, ", ".join(config.SEVERITIES)))
+    if args.timeout is not None:
+        t = args.timeout
+        if t.isascii() and t.isdigit() and int(t) > 0:
+            updates["timeoutSeconds"] = int(t)
+        else:
+            problems.append("timeoutSeconds %r is not a positive whole number" % t)
+    if problems:
+        return "Invalid value, nothing was written: %s. %s is unchanged." % (
+            "; ".join(problems), config.CONFIG_PATH)
+    if not updates:
+        return "No values given, nothing was written. %s is unchanged." % config.CONFIG_PATH
+    err = _write_config(args.project, updates, "nothing was set", "/snyk-mode")
+    if err:
+        return err
+    return "Saved to %s: %s." % (config.CONFIG_PATH,
+                                 ", ".join("%s=%s" % kv for kv in sorted(updates.items())))
 
 
 def cmd_scan(args):
@@ -132,11 +192,14 @@ def cmd_scan(args):
     cfg = config.load(args.project)
     results = scan_hook.run_scans(types.SimpleNamespace(source=True, dependency=True),
                                   cfg, args.project)
-    return scan_hook.build_message(results, cfg, False)
+    message = scan_hook.build_message(results, cfg, False)
+    # REQ-51: every run, after (outside) the untrusted blocks; unrelated to the REQ-35 hint.
+    return "%s\nCurrent mode: %s. Change it with /snyk-mode." % (message, cfg.mode)
 
 
 COMMANDS = {"install": cmd_install, "auth": cmd_auth, "decline": cmd_decline,
-            "set-mode": cmd_set_mode, "scan": cmd_scan}
+            "set-mode": cmd_set_mode,
+            "get-config": cmd_get_config, "set-config": cmd_set_config, "scan": cmd_scan}
 
 
 def build_parser():
@@ -150,6 +213,11 @@ def build_parser():
     d.add_argument("kind", choices=DECLINE_KINDS)
     m = sub.add_parser("set-mode")
     m.add_argument("mode", nargs="?", default=None)
+    sub.add_parser("get-config")
+    c = sub.add_parser("set-config")
+    c.add_argument("--mode", default=None)
+    c.add_argument("--severity", default=None)
+    c.add_argument("--timeout", default=None)
     sub.add_parser("scan")
     return p
 

@@ -226,6 +226,38 @@ class ArgsAndTimeoutTest(CliBase):
             self.assertFalse(os.path.exists(marker), "child process survived the timeout")
 
 
+class RealCliFixtureTest(unittest.TestCase):
+    """Outputs captured from the real Snyk CLI 1.1308.0 (paths sanitised)."""
+
+    @staticmethod
+    def _load(name):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "real_cli", name)
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def test_req_30_real_exit_3_no_projects(self):
+        for kind, name in (("sca", "no_projects_sca.json"), ("sast", "no_projects_sast.json")):
+            res = cli.classify(kind, 3, self._load(name), "")
+            self.assertEqual(res.status, cli.NOTHING_TO_SCAN)
+            self.assertEqual(res.message, "nothing to scan")
+
+    def test_req_30_real_exit_2_failed(self):
+        res = cli.classify("sca", 2, self._load("failed_invalid_manifest_sca.json"), "")
+        self.assertEqual(res.status, cli.FAILED)
+        self.assertTrue(res.message.startswith("scan failed:"))
+
+    def test_req_28_real_failure_message_has_reason(self):
+        # Real CLI prints pretty JSON on stdout with empty stderr, so the first
+        # line is "{". The message should carry the "error" field instead.
+        res = cli.classify("sca", 2, self._load("failed_invalid_manifest_sca.json"), "")
+        self.assertIn("failed to get dependency graph", res.message)
+
+    def test_req_28_real_not_authenticated(self):
+        for kind, name in (("sast", "auth_required_sast.json"), ("sca", "auth_required_sca.json")):
+            res = cli.classify(kind, 2, self._load(name), "")
+            self.assertEqual(res.status, cli.NOT_AUTHENTICATED)
+
+
 class NoTokenAccessTest(unittest.TestCase):
     def test_req_26_source_does_not_touch_token_or_auth_config(self):
         src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

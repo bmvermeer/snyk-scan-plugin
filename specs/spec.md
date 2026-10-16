@@ -95,8 +95,10 @@ Levels: must blocks release; should and may do not.
 - **REQ-45 (should):** Given Python 3 cannot be found, when a hook starts, then a one-line message says Python 3 is required, and the turn is not blocked.
 
 ### Commands and config
-- **REQ-46 (should):** Given the user runs `/snyk-mode <report|suggest|autofix>`, when the value is valid, then it is written to `.claude/snyk-plugin.json`. When invalid, the file is unchanged and valid values are listed.
+- **REQ-46 (should):** Given the user runs `/snyk-mode <report|suggest|autofix>`, when the value is valid, then it is written to `.claude/snyk-plugin.json`. When invalid, the file is unchanged and valid values are listed. When no value is given, REQ-50 applies.
 - **REQ-47 (should):** Given the user runs `/snyk-scan`, when it executes, then both SAST and SCA run regardless of detected changes.
+- **REQ-50 (should):** Given the user runs `/snyk-mode` with no value, when it executes, then Claude interviews the user, one question at a time, for `mode` (`report`, `suggest`, `autofix`), `severityThreshold` (`low`, `medium`, `high`, `critical`), and `timeoutSeconds` (positive integer). Each question shows the current value (the default when no config exists) and what the options mean, and the user can keep the current value. After the last answer the answers are written to `.claude/snyk-plugin.json` in one step, keeping any other keys already in the file. A value that fails validation is not written and the user is told which one and why. If the user stops before the end, nothing is written. The config schema does not change.
+- **REQ-51 (should):** Given the user runs `/snyk-scan`, when the results are shown, then the output also states the current mode, and says it can be changed with `/snyk-mode`. This is shown on every run, not once per session, and it does not change what the scan does in any mode (REQ-47).
 - **REQ-48 (should):** Given `timeoutSeconds` in config is a positive integer, when a scan runs, then it is the timeout instead of 120.
 - **REQ-49 (may):** Given `severityThreshold` in config, when reporting, then findings below it are excluded. Default is `low` (everything reported).
 
