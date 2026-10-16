@@ -4,13 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Everything lives in this one repo: the plugin code (`hooks/`, `commands/`, `skills/`), the tests (`tests/`), and the planning files (`specs/`). There is no separate specs repo. Run the tests with `python3 -m unittest discover` (T16 finalises this section). The project is `snyk-scan-plugin` (MIT, first release `0.1.0`). Files in `specs/`, in order of authority:
+`snyk-scan-plugin` (MIT, first release `0.1.0`) lives in one repo, https://github.com/bmvermeer/snyk-scan-plugin: plugin code, tests, and planning files together.
+
+Layout:
+
+- `hooks/`: `hooks.json`, `scan.py`, `snapshot.py`, `helper.py`; shared code in `hooks/lib/`.
+- `commands/`: `/snyk-mode` and `/snyk-scan`. `skills/snyk-scan/`: the skill.
+- `tests/`: `unittest` suites, with `fixtures/` and `stubs/` (stubbed `snyk`).
+- `specs/`: planning files. `.github/workflows/test.yml`: CI on macOS, Linux, Windows.
+- `.claude-plugin/`: plugin manifest.
+
+Commands (run from the repo root):
+
+- All tests: `python3 -m unittest discover`
+- One suite: `python3 -m unittest tests.test_scan_modes -v`
+- One test: `python3 -m unittest tests.test_install.InstallTest.test_req_13_install_declined_skips_and_is_not_asked_again`
+- Try the plugin locally: `claude --plugin-dir .`
+
+Files in `specs/`, in order of authority:
 
 - `specs/spec.md`: source of truth (draft v2, requirements REQ-1 to REQ-49, decisions, open questions).
 - `specs/plan.md`: approach, components, REQ coverage, and the T1 hook-runtime note.
 - `specs/tasks.md`: ordered tasks, one at a time. Mark a task done only when its verification passes.
 
-If the spec turns out wrong, change the spec first and the code second. Don't pick answers to open questions silently. Once the real commands are final, replace this section (task T16).
+If the spec turns out wrong, change the spec first and the code second. Don't pick answers to open questions silently.
 
 ## What is being built
 

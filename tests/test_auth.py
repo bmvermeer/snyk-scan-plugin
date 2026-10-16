@@ -56,7 +56,7 @@ class AuthTest(ScanHookTest):
     def test_req_23_reason_embeds_absolute_helper_commands(self):
         d = json.loads(self.unauth_turn().stdout)
         self.assertNotIn("CLAUDE_PLUGIN_ROOT", d["reason"])
-        self.assertIn(HELPER, d["reason"])
+        self.assertIn(HELPER.replace("\\", "/"), d["reason"])
         self.assertIn('--session "sess-1"', d["reason"])
         self.assertRegex(d["reason"], r'helper\.py" --session "sess-1" --project "[^"]+" auth')
         self.assertRegex(d["reason"], r'decline auth')

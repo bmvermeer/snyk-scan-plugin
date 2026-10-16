@@ -20,10 +20,10 @@ Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP
 
 ## Install
 
-The project is meant to be installed through two channels: the Claude Code plugin marketplace and directly from GitHub. The repository location (GitHub org) is still undecided, so there is no published marketplace entry or repository URL yet. Fill in the real values here once they exist.
+The project is meant to be installed through two channels: the Claude Code plugin marketplace and directly from GitHub. The repository is <https://github.com/bmvermeer/snyk-scan-plugin>. There is no published marketplace entry yet.
 
 - **Marketplace:** add the marketplace that lists `snyk-scan-plugin`, then install the plugin with Claude Code's `/plugin` commands. (Marketplace name: to be decided.)
-- **GitHub:** add the `snyk-scan-plugin` repository as a plugin source with Claude Code's `/plugin` commands. (Repository URL: to be decided.)
+- **GitHub:** add the `snyk-scan-plugin` repository as a plugin source with Claude Code's `/plugin` commands. Repository: `bmvermeer/snyk-scan-plugin` (`https://github.com/bmvermeer/snyk-scan-plugin`).
 - **Local checkout (development):** `claude --plugin-dir /path/to/snyk-scan-plugin` loads the plugin from a clone of this repository.
 
 ## Modes
@@ -113,7 +113,7 @@ python3 -m unittest discover
 
 The tests run the hook logic against a stubbed `snyk` (`tests/stubs/snyk`, and `snyk.cmd` for Windows) with scripted exit codes and JSON. They use no real tokens and no network. The suite uses only the Python standard library.
 
-A GitHub Actions workflow (`.github/workflows/test.yml`) runs the suite on Linux, macOS, and Windows runners (Python 3.9 and the latest 3.x) on every push and pull request, using `python -m unittest discover` (the same module invocation as above). It has not run yet because the repository has no GitHub remote, so the suite has so far been run locally only.
+A GitHub Actions workflow (`.github/workflows/test.yml`) runs the suite on Linux, macOS, and Windows runners (Python 3.9 and the latest 3.x) on every push and pull request, using `python -m unittest discover` (the same module invocation as above). The workflow file is in the repository, but no run has been confirmed yet, so the suite has so far been verified locally only.
 
 ## Known limitations
 

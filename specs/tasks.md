@@ -9,6 +9,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Acceptance: A short written note (added to the plan) states, from the docs and a real run: how a Stop hook ends or continues a turn, how a message reaches the user, how session ID and working directory are passed, how a plugin continuation is detected, which shell runs hook commands on Windows, and a launcher command that works on all three OSes. Any mismatch with the spec is raised before T2.
   - Verify: Minimal hook that logs its input, run on macOS and Windows.
   - Files: `plan.md` (note only), throwaway hook outside the repo
+  - Status: left unticked. Note is in plan.md (macOS run, cross-checked with the implementation). Unverified: real Windows run (hook shell, bash launcher without Git Bash, REQ-45 path).
 
 - [x] **T2: Scaffold the repo and test harness**
   - Satisfies: REQ-44 (foundation)
@@ -93,7 +94,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Acceptance: The whole suite passes on Windows. The launcher prints the Python 3 required message when Python is missing and does not block the turn.
   - Verify: full suite on a Windows machine, `test_req_45_*`.
   - Files: `hooks/hooks.json`, fixes found in any module
-  - Note: code side done on macOS; Windows run pending (T14 CI). Added launcher with REQ-45 message, `lib/where.py` (no cwd lookup), UTF-8 stdio, state.save retry, forward-slash helper paths.
+  - Note: code side done on macOS; Windows run pending (T14 CI). Added launcher with REQ-45 message, `lib/where.py` (no cwd lookup), UTF-8 stdio, state.save retry, forward-slash helper paths. First CI run failed on Windows only (29 failures, 8 errors). Likely cause: tests/stubs/snyk.cmd had LF endings (autocrlf false), which breaks cmd.exe label/goto handling. Fixes: `.gitattributes` forces CRLF for .cmd/.bat, stub rewritten with flat goto flow, install test stubs written CRLF on Windows, tests made OS-aware (npm.cmd/brew.cmd removal, forward-slash helper path). Open: REQ-4 10k-file timing was 0.696s on the Windows runner, not changed. Verification needs a green Windows CI run.
 
 - [ ] **T14: GitHub Actions workflow**
   - Satisfies: REQ-44 (cross-OS verification)
@@ -110,12 +111,13 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Verify: Manual read against the spec and a fresh install on a clean machine.
   - Files: `README.md`
 
-- [ ] **T16: Repo CLAUDE.md**
+- [x] **T16: Repo CLAUDE.md**
   - Satisfies: v0.1 bootstrap scope
   - Depends on: T14
   - Acceptance: `CLAUDE.md` in the repo root has the real test, run, and single-test commands and the actual layout (code, `tests/`, and `specs/` in one repo), and no "planned" wording.
   - Verify: Commands in the file run as written.
   - Files: `CLAUDE.md`
+  - Note: T14 (CI green) is still unverified; no CI run has been confirmed. Commands were run locally and work.
 
 - [ ] **T17: Manual end-to-end release check for 0.1.0**
   - Satisfies: Success criteria

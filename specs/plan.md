@@ -41,6 +41,13 @@ Unverified, needs a Windows machine:
 
 Spec impact: none yet that contradicts a REQ. Additions needed: REQ-11 detection uses `stop_hook_active` and the no-`UserPromptSubmit`-on-continuation fact (clarify in T8), and the minimum Python is 3.9 (stdlib only, avoid 3.10+ syntax such as `match` and `X | Y` types). Resolve the open "Python launcher" question after the Windows run.
 
+### T1 cross-check against the implementation (written retroactively, 2026-10-16)
+Not from a fresh run. Re-read `hooks/hooks.json`, `hooks/scan.py`, `hooks/snapshot.py` against the note above; the macOS facts match the code:
+- `snapshot.py` reads `session_id` and `cwd` from stdin JSON and prints nothing. `scan.py` reads the same, checks `stop_hook_active` for REQ-11, ends the turn with `{"systemMessage"}` and continues with `{"decision":"block","reason"}`.
+- `hooks.json` launcher is the T13 form (`"shell":"bash"`, probe python3, python, `py -3`, REQ-45 message, exit 0). This supersedes the earlier `||` candidate in the verified list.
+- Mismatch to resolve: the note's "Windows runs Git Bash, or PowerShell if absent" is from docs only, and `hooks.json` pins `bash`. Whether `"shell":"bash"` works on a Windows machine without Git Bash is unverified. No spec REQ is contradicted, but REQ-44 and REQ-45 are untested on real Windows.
+- Remaining for T1: a real Windows run (shell, launcher, REQ-45 path).
+
 ### T13 launcher decision (2026-10-15, macOS only, Windows UNVERIFIED)
 - Both hooks use `"shell": "bash"` with one sh command: loop over `python3`, `python`, `"py -3"`, run a probe (`import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)`), `exec` the first that passes, else print `{"systemMessage":"Snyk scan plugin: Python 3.9 or newer is required but was not found, so scans are off. ..."}` and `exit 0` (REQ-45; exit 2 would block). The probe also skips Python 2 and the Windows Store stub (exit 9009). Tested with `sh -c` and a PATH without Python (`tests/test_launcher.py`).
 - Trade-off: PowerShell 5.1 cannot parse this (`||`, `for ... do ... done`), so rather than a second PowerShell form we pin `bash`. Claude Code on Windows normally has Git Bash. If it is absent, the hook cannot start; Claude Code reports that as a non-blocking hook error and no scan runs. Not verified. Alternative if the CI/manual run shows this matters: add a second hook entry with `"shell": "powershell"` (`if (Get-Command python3 ...)` form) and have each entry no-op under the wrong shell.
@@ -69,7 +76,7 @@ Spec impact: none yet that contradicts a REQ. Additions needed: REQ-11 detection
 - R2: Python launcher differs per OS (`python3`, `python`, `py -3`). -> T1 picks one command form that works on all three, with the REQ-45 message as the fallback.
 - R3: CLI error strings for auth and Snyk Code disabled may change. -> Isolate them in one table in `cli.py`; unrecognised errors take the generic REQ-28 path.
 - R4: Baseline hashing may exceed 500 ms on large trees. -> Cache by size and mtime, hash only when those change; benchmark test at 10,000 files (REQ-4).
-- R5: The GitHub location is TBD, and GitHub Actions needs a remote. -> Everything (code, tests, `specs/`) is already in one local repo, `snyk-scan-plugin`; the CI task can be completed once the remote exists.
+- R5: GitHub Actions needs a remote. -> Resolved: the remote exists at https://github.com/bmvermeer/snyk-scan-plugin. Everything (code, tests, `specs/`) is in that one repo. Remaining: confirm the workflow runs green (T14).
 - R6: REQ-43 versus the approval prompt both continue or end turns. -> Spec amended: one allowed continuation for approvals.
 - R7: Full scan output passed to Claude is a prompt-injection path (accepted decision). -> REQ-34 marking plus REQ-39 location limit, tested with a hostile fixture.
 

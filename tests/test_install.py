@@ -42,7 +42,7 @@ exit /b %CODE%
 def make_stub(directory, name):
     ext = ".cmd" if IS_WIN else ""
     path = os.path.join(directory, name + ext)
-    with open(path, "w", newline="\n") as f:
+    with open(path, "w", newline="\r\n" if IS_WIN else "\n") as f:  # cmd.exe needs CRLF
         f.write((CMD_STUB if IS_WIN else SH_STUB).format(name=name, upper=name.upper()))
     os.chmod(path, 0o755)
 
@@ -103,7 +103,7 @@ class InstallTest(ScanHookTest):
     def test_req_12_reason_embeds_absolute_helper_commands(self):
         d = json.loads(self.missing_cli_turn().stdout)
         self.assertNotIn("CLAUDE_PLUGIN_ROOT", d["reason"])
-        self.assertIn(HELPER, d["reason"])
+        self.assertIn(HELPER.replace("\\", "/"), d["reason"])
         self.assertIn('--session "sess-1"', d["reason"])
         self.assertRegex(d["reason"], r'helper\.py" --session "sess-1" --project "[^"]+" install')
         self.assertRegex(d["reason"], r'decline install')
@@ -205,8 +205,9 @@ class InstallTest(ScanHookTest):
         self.assertIn("not found afterwards", out.failures[0].reason)
 
     def test_req_17_no_installer_available_lists_each(self):
-        os.remove(os.path.join(self.bin, "npm"))
-        os.remove(os.path.join(self.bin, "brew"))
+        ext = ".cmd" if IS_WIN else ""
+        os.remove(os.path.join(self.bin, "npm" + ext))
+        os.remove(os.path.join(self.bin, "brew" + ext))
         out = install.run_install(env=self.env(), platform="linux")
         self.assertEqual([f.method for f in out.failures],
                          ["npm install -g snyk", "brew install snyk-cli", "standalone binary"])
