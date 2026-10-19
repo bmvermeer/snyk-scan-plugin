@@ -91,7 +91,7 @@ Levels: must blocks release; should and may do not.
 - **REQ-43 (must):** Given a scan was skipped, failed, or timed out, when the turn ends, then the turn is not continued or blocked on account of it. The only exception is the one-time approval prompt of REQ-12 or REQ-23, which continues the turn once so Claude can ask.
 
 ### Platform
-- **REQ-44 (must):** Given the plugin runs on Windows, when a scan or install is due, then every behavior in this spec works the same as on macOS and Linux: change detection, scans, modes, config, install fallback, auth, and messages.
+- **REQ-44 (must, Windows part deferred to future work, 2026-10-19):** Given the plugin runs on Windows, when a scan or install is due, then every behavior in this spec works the same as on macOS and Linux: change detection, scans, modes, config, install fallback, auth, and messages.
 - **REQ-45 (should):** Given Python 3 cannot be found, when a hook starts, then a one-line message says Python 3 is required, and the turn is not blocked.
 
 ### Commands and config
@@ -106,7 +106,7 @@ Levels: must blocks release; should and may do not.
 - Security: the plugin never reads, stores, or logs `SNYK_TOKEN` or auth config. Scan output is untrusted text: it is never executed and is marked as data (REQ-34). `autofix` edits only locations named by structured fields (REQ-39). Install and `snyk auth` need explicit approval.
 - Integrity: the checksum comes from the same host as the binary, so it guards against corruption and tampering in transit, not a compromised `downloads.snyk.io`.
 - Performance: no-change turns add under 500 ms (REQ-4). Scan timeout defaults to 120 s and is configurable.
-- Compatibility: macOS, Linux, and Windows (all required for v1). Snyk CLI current stable. Claude Cowork / Claude Code plugin format.
+- Compatibility: macOS and Linux for 0.1.0. Windows support is future work (code and CI work kept, verification parked, see Decisions). Snyk CLI current stable. Claude Cowork / Claude Code plugin format.
 - Network: the binary fallback reaches only `downloads.snyk.io` over HTTPS.
 - Dependencies: Python 3 (required). The Snyk CLI. For install: `npm`, `brew`, or a Python-based download plus SHA-256 via the Python standard library. Git is optional (REQ-7). Any extra tool needs approval.
 
@@ -147,7 +147,7 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - Editing a source file in a project with the plugin installed produces a SAST result at the end of the turn with no manual action.
 - Editing a lockfile produces an SCA result and not a SAST result.
 - On a machine with no CLI or no login, approvals alone lead to a working first scan.
-- All must-level REQs have passing tests on macOS, Linux, and Windows in GitHub Actions, and the no-loop test passes under `autofix`.
+- All must-level REQs have passing tests on macOS and Linux in GitHub Actions (Windows is future work), and the no-loop test passes under `autofix`.
 
 ## Open questions
 - [ ] Python launcher: which command do the hooks call (`python3`, `python`, or `py -3`), and how is it chosen per OS? (plan)
@@ -171,6 +171,8 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - One repository: code, tests, and planning files (`specs/`, plus the repo `CLAUDE.md`) all live in `snyk-scan-plugin`. There is no separate specs repo. Repo name is `snyk-scan-plugin`. License is MIT. Distribution is both the plugin marketplace and GitHub install.
 - REQ-4 budget confirmed: under 500 ms for each hook on a project of up to 10,000 files.
 - Defaults accepted: `severityThreshold` is `low`, no binary update checks in v1, the plugin does not touch `.gitignore`, and the user decides whether to commit `.claude/snyk-plugin.json`.
+
+- Windows is parked as future work (2026-10-19). 0.1.0 is verified on macOS and Linux only. The Windows code, `.cmd` stubs, and the Windows CI job stay in the repo, but a green Windows run, the real Windows hook check (T1), and the REQ-4 Windows timing are not release gates. REQ-44, REQ-45, and REQ-21 stay as the target for the Windows follow-up.
 
 ## Assumptions
 - Users have a Snyk account and a browser available for `snyk auth`. Headless sessions fall under REQ-25.

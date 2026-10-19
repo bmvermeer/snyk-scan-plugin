@@ -9,7 +9,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Acceptance: A short written note (added to the plan) states, from the docs and a real run: how a Stop hook ends or continues a turn, how a message reaches the user, how session ID and working directory are passed, how a plugin continuation is detected, which shell runs hook commands on Windows, and a launcher command that works on all three OSes. Any mismatch with the spec is raised before T2.
   - Verify: Minimal hook that logs its input, run on macOS and Windows.
   - Files: `plan.md` (note only), throwaway hook outside the repo
-  - Status: left unticked. Note is in plan.md (macOS run, cross-checked with the implementation). Unverified: real Windows run (hook shell, bash launcher without Git Bash, REQ-45 path).
+  - Status: left unticked. **Windows part parked as future work (2026-10-19); macOS part is sufficient for 0.1.0.** Note is in plan.md (macOS run, cross-checked with the implementation). Unverified: real Windows run (hook shell, bash launcher without Git Bash, REQ-45 path).
 
 - [x] **T2: Scaffold the repo and test harness**
   - Satisfies: REQ-44 (foundation)
@@ -88,7 +88,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Verify: `test_req_46_*`, `test_req_47_*`.
   - Files: `commands/snyk-mode.md`, `commands/snyk-scan.md`, `hooks/helper.py`, `tests/test_commands.py`
 
-- [ ] **T13: Windows parity and Python-missing message**
+- [ ] **T13: Windows parity and Python-missing message** (FUTURE WORK, parked 2026-10-19; not a 0.1.0 gate)
   - Satisfies: REQ-44, REQ-45
   - Depends on: T8, T10
   - Acceptance: The whole suite passes on Windows. The launcher prints the Python 3 required message when Python is missing and does not block the turn.
@@ -96,7 +96,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Files: `hooks/hooks.json`, fixes found in any module
   - Note: code side done on macOS; Windows run pending (T14 CI). Added launcher with REQ-45 message, `lib/where.py` (no cwd lookup), UTF-8 stdio, state.save retry, forward-slash helper paths. First CI run failed on Windows only (29 failures, 8 errors). Likely cause: tests/stubs/snyk.cmd had LF endings (autocrlf false), which breaks cmd.exe label/goto handling. Fixes: `.gitattributes` forces CRLF for .cmd/.bat, stub rewritten with flat goto flow, install test stubs written CRLF on Windows, tests made OS-aware (npm.cmd/brew.cmd removal, forward-slash helper path). Open: REQ-4 10k-file timing was 0.696s on the Windows runner, not changed. Second CI run: 13 Windows failures left, caused by cmd.exe `echo` mangling scripted stdout/stderr (JSON with special chars, 'ECHO is off.'). snyk.cmd now delegates to `tests/stubs/snyk_stub.py` (same SNYK_STUB_* contract as the sh stub), so cmd never echoes scripted text; the install test copies the .py next to the copied snyk.cmd. Verification needs a green Windows CI run.
 
-- [ ] **T14: GitHub Actions workflow**
+- [ ] **T14: GitHub Actions workflow** (Windows job is FUTURE WORK, parked 2026-10-19; macOS and Linux jobs still gate 0.1.0)
   - Satisfies: REQ-44 (cross-OS verification)
   - Depends on: T2 (repo must exist on GitHub, see R5)
   - Acceptance: The suite runs on macOS, Linux, and Windows runners on every push and pull request, with the same command used locally. Adding a linter needs approval first.
@@ -119,9 +119,9 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Files: `CLAUDE.md`
   - Note: T14 (CI green) is still unverified; no CI run has been confirmed. Commands were run locally and work.
 
-- [ ] **T17: Manual end-to-end release check for 0.1.0**
+- [ ] **T17: Manual end-to-end release check for 0.1.0** (macOS and Linux only; Windows run is FUTURE WORK)
   - Satisfies: Success criteria
-  - Depends on: T13, T14, T15, T16
+  - Depends on: T14 (macOS, Linux), T15, T16. T13 is parked.
   - Acceptance: With a real Snyk account: a source edit gives a SAST result, a lockfile edit gives an SCA result only, and a machine with no CLI or login reaches a first scan on approvals alone. Version is `0.1.0` in `plugin.json`.
   - Verify: Recorded manual run on macOS, Linux, and Windows.
   - Files: none

@@ -53,6 +53,9 @@ Not from a fresh run. Re-read `hooks/hooks.json`, `hooks/scan.py`, `hooks/snapsh
 - Trade-off: PowerShell 5.1 cannot parse this (`||`, `for ... do ... done`), so rather than a second PowerShell form we pin `bash`. Claude Code on Windows normally has Git Bash. If it is absent, the hook cannot start; Claude Code reports that as a non-blocking hook error and no scan runs. Not verified. Alternative if the CI/manual run shows this matters: add a second hook entry with `"shell": "powershell"` (`if (Get-Command python3 ...)` form) and have each entry no-op under the wrong shell.
 - Same issue for the Bash tool commands in `commands/*.md` and the helper commands in approval prompts: they assume a bash-style tool. Helper paths use forward slashes on Windows. If Claude uses its PowerShell tool instead, a quoted exe path needs `&` and may fail. Unverified.
 
+## Parked: Windows (2026-10-19)
+Windows verification is future work. Nothing is removed: T1's Windows run, T13, the Windows CI job, the `.cmd` stubs, and the launcher notes above stay as the starting point. 0.1.0 targets macOS and Linux. Open for the follow-up: bash launcher without Git Bash, a PowerShell hook entry, REQ-4 timing (0.696s on the Windows runner), and `commands/*.md` under a non-bash tool.
+
 ## Data model
 - Baseline: `{ "<relative path>": "<sha256>" }`, stored with the session state.
 - State file: `{ baseline, install_declined, auth_declined, hint_shown, rescan_done, pending: null|"install"|"auth" }`.

@@ -6,7 +6,7 @@ A Claude Code / Cowork plugin that runs Snyk scans automatically after each Clau
 - **SCA** (`snyk test --all-projects`) runs if the turn changed dependency manifests or lockfiles.
 - Each scan runs at most once per turn, on the project root only. A turn that changed nothing relevant runs no scan and prints nothing.
 
-Version `0.1.0`, MIT license. Status: not yet released. The manual end-to-end run on macOS, Linux, and Windows (task T17) is still pending, and the Windows behavior has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
+Version `0.1.0`, MIT license. Status: not yet released. The manual end-to-end run on macOS and Linux (task T17) is still pending. Windows support is future work and has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
 
 Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP server, and anything that reads or stores Snyk tokens.
 
@@ -118,7 +118,7 @@ A GitHub Actions workflow (`.github/workflows/test.yml`) runs the suite on Linux
 
 ## Known limitations
 
-- Windows is a required target but is **unverified on a real Windows machine**. The hooks are pinned to `bash` (Git Bash). If it is missing, Claude Code reports a non-blocking hook error and no scan runs. The `/snyk-mode` and `/snyk-scan` commands also assume a bash-style tool. See `specs/plan.md` (T13 launcher decision).
+- Windows is **future work** and unverified on a real Windows machine; the code and CI job exist but are not a 0.1.0 gate. The hooks are pinned to `bash` (Git Bash). If it is missing, Claude Code reports a non-blocking hook error and no scan runs. The `/snyk-mode` and `/snyk-scan` commands also assume a bash-style tool. See `specs/plan.md` (T13 launcher decision).
 - The exact CLI error strings that identify "not authenticated" and "Snyk Code not enabled" are still an open question in the spec, so an unrecognised error shows as `scan failed: <reason>`.
 - Not supported in v1: updating or re-checking the version of an installed CLI, and proxy, self-signed certificate, or offline use.
 - The standalone checksum comes from the same host as the binary, so it guards against corruption and tampering in transit, not against a compromised `downloads.snyk.io`.
