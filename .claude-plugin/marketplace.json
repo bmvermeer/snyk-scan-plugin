@@ -1,0 +1,11 @@
+{
+  "name": "snyk-scan",
+  "owner": { "name": "Brian Vermeer" },
+  "plugins": [
+    {
+      "name": "snyk-scan-plugin",
+      "source": "./",
+      "description": "Runs Snyk Code (SAST) and Snyk Open Source (SCA) scans automatically after each Claude turn that changes source or dependency files."
+    }
+  ]
+}

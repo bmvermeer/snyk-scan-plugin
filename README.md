@@ -20,11 +20,24 @@ Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP
 
 ## Install
 
-The project is meant to be installed through two channels: the Claude Code plugin marketplace and directly from GitHub. The repository is <https://github.com/bmvermeer/snyk-scan-plugin>. There is no published marketplace entry yet.
+The repository <https://github.com/bmvermeer/snyk-scan-plugin> is both the plugin and its own marketplace (named `snyk-scan`).
 
-- **Marketplace:** add the marketplace that lists `snyk-scan-plugin`, then install the plugin with Claude Code's `/plugin` commands. (Marketplace name: to be decided.)
-- **GitHub:** add the `snyk-scan-plugin` repository as a plugin source with Claude Code's `/plugin` commands. Repository: `bmvermeer/snyk-scan-plugin` (`https://github.com/bmvermeer/snyk-scan-plugin`).
-- **Local checkout (development):** `claude --plugin-dir /path/to/snyk-scan-plugin` loads the plugin from a clone of this repository.
+- **From GitHub (recommended).** In Claude Code, run:
+
+  ```
+  /plugin install snyk-scan-plugin --marketplace bmvermeer/snyk-scan-plugin
+  ```
+
+  This needs Claude Code 2.1.275 or later. On older versions, do it in two steps:
+
+  ```
+  /plugin marketplace add bmvermeer/snyk-scan-plugin
+  /plugin install snyk-scan-plugin@snyk-scan
+  ```
+
+  Then restart Claude Code or run `/reload-plugins`. Verify with `/snyk-mode`.
+- **Update.** `/plugin marketplace update snyk-scan`, then reload.
+- **Local checkout (development).** `claude --plugin-dir /path/to/snyk-scan-plugin` loads the plugin from a clone of this repository.
 
 ## Modes
 
