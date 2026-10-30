@@ -36,7 +36,29 @@ The repository <https://github.com/bmvermeer/snyk-scan-plugin> is both the plugi
   ```
 
   Then restart Claude Code or run `/reload-plugins`. Verify with `/snyk-mode`.
-- **Update.** `/plugin marketplace update snyk-scan`, then reload.
+- **Scope.** By default the plugin is installed for you in every project (`user`). To limit it to one folder, launch `claude` there and install with `--scope project` (writes `.claude/settings.json`, shareable) or `--scope local` (writes `.claude/settings.local.json`, only you):
+
+  ```
+  claude plugin install snyk-scan-plugin@snyk-scan --scope local
+  ```
+
+  The plugin scans the directory Claude was launched in, so launching from a monorepo subfolder scopes the scans to it.
+- **Update.** Refresh the marketplace, update the plugin, then restart Claude Code:
+
+  ```
+  /plugin marketplace update snyk-scan
+  claude plugin update snyk-scan-plugin@snyk-scan
+  ```
+
+  Claude Code detects updates by the `version` in `.claude-plugin/plugin.json`, so a new release needs a version bump.
+- **Uninstall.** Remove the plugin, and optionally the marketplace:
+
+  ```
+  claude plugin uninstall snyk-scan-plugin@snyk-scan
+  /plugin marketplace remove snyk-scan
+  ```
+
+  Add `--scope project` or `--scope local` if you installed with that scope. To reset the per-project mode, delete `.claude/snyk-plugin.json`.
 - **Local checkout (development).** `claude --plugin-dir /path/to/snyk-scan-plugin` loads the plugin from a clone of this repository.
 
 ## Modes
