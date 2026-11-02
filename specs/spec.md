@@ -183,4 +183,4 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 
 ## Changelog
 - **0.1.1 (2026-11-02):** any changed file triggers both scans (no source/dependency classification, REQ-1 to 6). Config switches `sast` and `sca`, default on (REQ-52), set through the `/snyk-mode` interview. `/snyk-scan` runs the enabled scans and says so when none are enabled (REQ-47). Baseline records size and mtime only, no hashing (REQ-4), and excludes `.claude/` (REQ-7). Snyk Code "not supported for your organization" is recognised as SAST disabled (REQ-27, SCA still runs). The real unauthenticated CLI message is matched exactly (REQ-23).
-- **0.1.2 (planned):** REQ-39 widened for SAST (decision 2026-11-02): a deeper code problem can be fixed in other project files, with guardrails.
+- **0.1.2 (2026-11-02):** REQ-39 widened for SAST (decision 2026-11-02): a deeper code problem can be fixed in other project files, with guardrails.

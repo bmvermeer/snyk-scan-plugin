@@ -7,7 +7,7 @@ A Claude Code / Cowork plugin that runs Snyk scans automatically after each Clau
   - **SCA** (`snyk test --all-projects`), unless `sca` is `false` in the config.
 - Each scan runs at most once per turn, on the project root only. The two scans are independent: one failing, timing out, or being skipped never stops the other. A turn that changed no files, or one where both scans are switched off, runs no scan and prints nothing.
 
-Version `0.1.1`, MIT license. Status: published for end-to-end testing. The manual end-to-end run on macOS and Linux (task T17) is still pending. Windows support is future work and has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
+Version `0.1.2`, MIT license. Status: published for end-to-end testing. The manual end-to-end run on macOS and Linux (task T17) is still pending. Windows support is future work and has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
 
 Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP server, and anything that reads or stores Snyk tokens.
 

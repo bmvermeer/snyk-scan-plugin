@@ -1,6 +1,6 @@
 {
   "name": "snyk-scan-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Runs Snyk Code (SAST) and Snyk Open Source (SCA) scans automatically after each Claude turn that changes files. Each scan can be switched off.",
   "author": { "name": "Brian Vermeer" },
   "license": "MIT",

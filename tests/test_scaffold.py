@@ -20,7 +20,7 @@ def run_stub(exit_code, stdout="", stderr=""):
 class ScaffoldTest(unittest.TestCase):
     def test_manifest_version(self):
         with open(os.path.join(ROOT, ".claude-plugin", "plugin.json")) as f:
-            self.assertEqual(json.load(f)["version"], "0.1.1")
+            self.assertEqual(json.load(f)["version"], "0.1.2")
 
     def test_hooks_json_declares_both_hooks(self):
         with open(os.path.join(ROOT, "hooks", "hooks.json")) as f:
