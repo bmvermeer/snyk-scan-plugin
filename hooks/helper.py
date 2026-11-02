@@ -7,6 +7,7 @@
     helper.py [--session ID] [--project DIR] set-mode [report|suggest|autofix]   (/snyk-mode)
     helper.py [--session ID] [--project DIR] get-config                          (/snyk-mode interview)
     helper.py [--session ID] [--project DIR] set-config [--mode M] [--severity S] [--timeout N]
+                                                   [--sast on|off] [--sca on|off]
     helper.py [--session ID] [--project DIR] scan                                (/snyk-scan)
 
 Output goes to stdout for Claude; it never raises.
@@ -15,7 +16,6 @@ import argparse
 import json
 import os
 import sys
-import types
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -27,10 +27,11 @@ DECLINE_KINDS = ("install", "auth")
 
 def _retry_pending(st, project):
     """Retry the scans that were waiting for the CLI or a login (once)."""
-    kinds = [k for k in (st.get("pending_scans") or []) if k in ("sast", "sca")]
+    cfg = config.load(project)
+    kinds = [k for k in (st.get("pending_scans") or [])
+             if k in ("sast", "sca") and getattr(cfg, k)]
     if not kinds:
         return []
-    cfg = config.load(project)
     lines = ["Snyk scan results:"]
     for kind in kinds:
         res = cli.run_scan(kind, project, cfg.timeout_seconds)
@@ -144,9 +145,14 @@ def cmd_get_config(args):
     def line(key, value):
         return "%s: %s%s" % (key, value, "" if raw.get(key) == value else " (default)")
 
+    def onoff(key, value):
+        return "%s: %s%s" % (key, "on" if value else "off", "" if isinstance(raw.get(key), bool) else " (default)")
+
     lines = [line("mode", cfg.mode),
              line("severityThreshold", cfg.severity_threshold),
-             line("timeoutSeconds", cfg.timeout_seconds)]
+             line("timeoutSeconds", cfg.timeout_seconds),
+             onoff("sast", cfg.sast),
+             onoff("sca", cfg.sca)]
     return "\n".join(lines + cfg.warnings)
 
 
@@ -170,6 +176,12 @@ def cmd_set_config(args):
             updates["timeoutSeconds"] = int(t)
         else:
             problems.append("timeoutSeconds %r is not a positive whole number" % t)
+    for key, val in (("sast", args.sast), ("sca", args.sca)):
+        if val is not None:
+            if val in ("on", "off"):
+                updates[key] = val == "on"
+            else:
+                problems.append("%s %r is not on or off" % (key, val))
     if problems:
         return "Invalid value, nothing was written: %s. %s is unchanged." % (
             "; ".join(problems), config.CONFIG_PATH)
@@ -183,18 +195,21 @@ def cmd_set_config(args):
 
 
 def cmd_scan(args):
-    """/snyk-scan (REQ-47): both scans, whatever changed, same report path as the Stop hook.
+    """/snyk-scan (REQ-47): every enabled scan, whatever changed, same report path as the Stop hook.
 
     A command never continues the turn, so suggest and autofix print the same report as
     report mode. Session state is neither read nor written: the baseline, rescan_done,
     fix_pending and the asked-once flags stay as the hooks left them.
     """
     cfg = config.load(args.project)
-    results = scan_hook.run_scans(types.SimpleNamespace(source=True, dependency=True),
-                                  cfg, args.project)
-    message = scan_hook.build_message(results, cfg, False)
+    if cfg.sast or cfg.sca:
+        message = scan_hook.build_message(scan_hook.run_scans(None, cfg, args.project), cfg, False)
+    else:
+        message = "No scans are enabled. Turn them on with /snyk-mode."
     # REQ-51: every run, after (outside) the untrusted blocks; unrelated to the REQ-35 hint.
-    return "%s\nCurrent mode: %s. Change it with /snyk-mode." % (message, cfg.mode)
+    on = [n for n, v in (("SAST", cfg.sast), ("SCA", cfg.sca)) if v]
+    return ("%s\nCurrent mode: %s. Scans on: %s. Change mode and scans with /snyk-mode."
+            % (message, cfg.mode, ", ".join(on) or "none"))
 
 
 COMMANDS = {"install": cmd_install, "auth": cmd_auth, "decline": cmd_decline,
@@ -218,6 +233,8 @@ def build_parser():
     c.add_argument("--mode", default=None)
     c.add_argument("--severity", default=None)
     c.add_argument("--timeout", default=None)
+    c.add_argument("--sast", default=None)
+    c.add_argument("--sca", default=None)
     sub.add_parser("scan")
     return p
 

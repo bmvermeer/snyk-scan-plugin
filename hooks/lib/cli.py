@@ -24,20 +24,21 @@ UNKNOWN_ERROR = "unknown_error"
 NOT_INSTALLED = "not_installed"
 
 # CLI error strings, matched case-insensitively as substrings of stdout+stderr.
-# UNVERIFIED: written from knowledge of the real Snyk CLI, not checked against a
-# live CLI (spec open question, risk R3). Unrecognised errors fall through to
+# The "Use `snyk auth` to authenticate" entry was checked against the real Snyk CLI
+# 1.1308.0 (tests/fixtures/real_cli); the others are from knowledge of the CLI and
+# UNVERIFIED (spec open question, risk R3). Unrecognised errors fall through to
 # the generic "scan failed" path (REQ-28), so a wrong entry degrades safely.
 AUTH_ERRORS = (
     "Authentication required",
     "SNYK-0005",
     "Authentication error",
     "MissingApiTokenError",
-    "snyk auth",
+    "Use `snyk auth` to authenticate",
 )
 CODE_DISABLED_ERRORS = (
     "Snyk Code is not enabled",
     "SNYK-CODE-0005",
-    "Snyk Code is not supported for org",
+    "Snyk Code is not supported for",
 )
 
 MAX_MESSAGE = 200

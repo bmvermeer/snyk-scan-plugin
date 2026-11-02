@@ -26,7 +26,7 @@ class ModesTest(ScanHookTest):
             return f.read()
 
     def findings_turn(self, mode, **cfg):
-        self.write_config(mode=mode, **cfg)
+        self.write_config(mode=mode, **dict({"sca": False}, **cfg))  # SAST only: one call per turn
         return self.turn_with("app.py", "print('a longer line')\n", SNYK_STUB_EXIT="1",
                               SNYK_STUB_STDOUT=SAST)
 
@@ -99,6 +99,13 @@ class ModesTest(ScanHookTest):
         self.assertEqual(len(calls), 3)
         self.assertTrue(calls[2].startswith("test --all-projects"))
         self.assertIn("SCA: ", self.message(r))
+
+    def test_req_05_06_rescan_never_runs_a_disabled_scan(self):
+        self.findings_turn("autofix")  # SAST had findings, SCA is off
+        self.write_config(mode="autofix", sast=False, sca=False)  # switched off mid-turn
+        r = self.stop(active=True, SNYK_STUB_EXIT="0")
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        self.assertEqual(len(self.calls()), 1)
 
     def test_req_41_reports_fixed_and_remaining(self):
         self.findings_turn("autofix")

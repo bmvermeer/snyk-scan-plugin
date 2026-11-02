@@ -5,7 +5,7 @@
     {
       "name": "snyk-scan-plugin",
       "source": "./",
-      "description": "Runs Snyk Code (SAST) and Snyk Open Source (SCA) scans automatically after each Claude turn that changes source or dependency files."
+      "description": "Runs Snyk Code (SAST) and Snyk Open Source (SCA) scans automatically after each Claude turn that changes files. Each scan can be switched off."
     }
   ]
 }

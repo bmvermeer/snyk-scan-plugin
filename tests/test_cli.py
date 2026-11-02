@@ -150,6 +150,28 @@ class ExitCodeTest(CliBase):
             self.assertEqual(r.status, cli.CODE_DISABLED, text)
             self.assertIn("Snyk Code", r.message)
 
+    def test_req_27_real_cli_wording_not_supported_for_organization(self):
+        msg = "Snyk Code is not supported for your current organization: `my-org`."
+        r = self.scan(exit_code=2, stderr=msg)
+        self.assertEqual(r.status, cli.CODE_DISABLED)
+
+    def test_req_27_sca_still_runs_when_sast_code_disabled(self):
+        from unittest import mock
+        import scan
+        disabled = cli.Result(cli.CODE_DISABLED, 2, "", "", "Snyk Code is not enabled for your organization")
+        ok = cli.Result(cli.OK, 0, "{}", "", "")
+        calls = []
+
+        def fake(kind, root, timeout):
+            calls.append(kind)
+            return disabled if kind == "sast" else ok
+
+        cfg = mock.Mock(timeout_seconds=1, sast=True, sca=True)
+        with mock.patch.object(cli, "run_scan", fake):
+            results = scan.run_scans(["a.py"], cfg, ".")
+        self.assertEqual(calls, ["sast", "sca"])
+        self.assertEqual([r.status for _, r in results], [cli.CODE_DISABLED, cli.OK])
+
     def test_req_27_code_disabled_only_for_sast(self):
         r = self.scan(kind="sca", exit_code=2, stderr=cli.CODE_DISABLED_ERRORS[0])
         self.assertEqual(r.status, cli.FAILED)
@@ -240,6 +262,12 @@ class RealCliFixtureTest(unittest.TestCase):
             res = cli.classify(kind, 3, self._load(name), "")
             self.assertEqual(res.status, cli.NOTHING_TO_SCAN)
             self.assertEqual(res.message, "nothing to scan")
+
+    def test_req_23_real_auth_message_only_matches_the_specific_phrase(self):
+        res = cli.classify("sast", 2, self._load("auth_required_sast.json"), "")
+        self.assertEqual(res.status, cli.NOT_AUTHENTICATED)
+        res = cli.classify("sca", 2, '{"error": "Run snyk auth docs page missing"}', "")
+        self.assertNotEqual(res.status, cli.NOT_AUTHENTICATED)
 
     def test_req_30_real_exit_2_failed(self):
         res = cli.classify("sca", 2, self._load("failed_invalid_manifest_sca.json"), "")

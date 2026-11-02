@@ -1,6 +1,6 @@
 # Plan: Snyk Scan Plugin
 
-Spec: specs/spec.md (draft v2; continuation to plan requested 2026-10-15)
+Spec: specs/spec.md (v3, approved 2026-11-02; continuation to plan requested 2026-10-15)
 
 ## Approach
 Two thin Python entry points (`snapshot.py`, `scan.py`) call a small library of single-purpose modules. All logic is pure functions over explicit inputs (paths, env, a command runner), so it is testable against a stubbed `snyk` without a Claude runtime. Python 3 standard library only, so there is nothing to install beyond Python itself.
@@ -13,10 +13,9 @@ Alternatives rejected: bash plus PowerShell (double the code and tests), a preco
 - `hooks/snapshot.py` (`UserPromptSubmit`): take the baseline, save to state. No output.
 - `hooks/scan.py` (`Stop`): load baseline, diff, decide scans, run them, build the report, return the hook result (end turn or continue). Exits quietly when nothing changed.
 - `hooks/helper.py`: subcommands `install`, `auth`, `decline <install|auth>`, `set-mode <mode>`. Called by Claude after approval and by the commands.
-- `hooks/lib/files.py`: classify a path as source, dependency file, or neither (REQ-1, 2, 5, 6; extension list lives here and in the spec).
-- `hooks/lib/baseline.py`: list files (git-aware with fallback list), hash, diff (REQ-7, 8, 10).
+- `hooks/lib/baseline.py`: list files (git-aware with fallback list, `.claude/` always excluded), record size and mtime (no hashing), diff to a sorted list of changed paths (REQ-3, 4, 7, 8, 10).
 - `hooks/lib/state.py`: per-session JSON in the OS temp dir keyed by session ID; flags `install_declined`, `auth_declined`, `hint_shown`, `rescan_done` (REQ-9, 13, 25, 35).
-- `hooks/lib/config.py`: read `.claude/snyk-plugin.json`, validate, fall back to `report` with a warning (REQ-35, 42, 48, 49).
+- `hooks/lib/config.py`: read `.claude/snyk-plugin.json`, validate, fall back to `report` with a warning (REQ-35, 42, 48, 49, 52).
 - `hooks/lib/cli.py`: locate `snyk` (PATH, then standalone path), run with list arguments and a timeout, map exit codes and known error strings (REQ-20, 21, 27 to 33).
 - `hooks/lib/install.py`: npm, brew, standalone download with host restriction and SHA-256 check, Alpine detection (REQ-14 to 22).
 - `hooks/lib/report.py`: parse the CLI JSON, apply the threshold, rank, format summary lines, wrap output as untrusted data (REQ-31 to 34, 36, 37).
@@ -78,7 +77,7 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 - R1: Claude's hook contract is not verified here (how a hook ends or continues a turn, how it reads the session ID, how a continuation is detected, where messages are shown, which shell runs the command on Windows). -> T1 spike confirms it against the current docs and a real run before any other work; unknowns change the spec first.
 - R2: Python launcher differs per OS (`python3`, `python`, `py -3`). -> T1 picks one command form that works on all three, with the REQ-45 message as the fallback.
 - R3: CLI error strings for auth and Snyk Code disabled may change. -> Isolate them in one table in `cli.py`; unrecognised errors take the generic REQ-28 path.
-- R4: Baseline hashing may exceed 500 ms on large trees. -> Cache by size and mtime, hash only when those change; benchmark test at 10,000 files (REQ-4).
+- R4: Hashing every file would exceed 500 ms on large trees. -> The baseline records size and mtime only and never hashes (user decision 2026-10-31); a touched-but-identical file counts as a change. Benchmark test at 10,000 files (REQ-4).
 - R5: GitHub Actions needs a remote. -> Resolved: the remote exists at https://github.com/bmvermeer/snyk-scan-plugin. Everything (code, tests, `specs/`) is in that one repo. Remaining: confirm the workflow runs green (T14).
 - R6: REQ-43 versus the approval prompt both continue or end turns. -> Spec amended: one allowed continuation for approvals.
 - R7: Full scan output passed to Claude is a prompt-injection path (accepted decision). -> REQ-34 marking plus REQ-39 location limit, tested with a hostile fixture.
@@ -86,13 +85,13 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 ## Requirement coverage
 | REQ | Covered by | Verified by |
 |-----|------------|-------------|
-| REQ-1 | files.py, scan.py | `test_req_01_source_extensions`, `test_req_01_source_change_runs_sast_once` |
-| REQ-2 | files.py, scan.py, cli.py | `test_req_02_dependency_names`, `test_req_02_dependency_change_runs_sca_all_projects` |
+| REQ-1 | baseline.py, scan.py | `test_req_01_any_file_type_is_a_change_sorted`, `test_req_01_change_runs_sast_once`, `test_req_01_02_any_file_type_runs_both_scans_once` |
+| REQ-2 | baseline.py, scan.py, cli.py | `test_req_02_change_runs_sca_all_projects_once`, `test_req_27_sast_failing_still_lets_sca_run` |
 | REQ-3 | baseline.py, scan.py | `test_req_03_no_change_is_empty`, `test_req_03_no_change_silent` |
 | REQ-4 | baseline.py | `test_req_04_overhead_under_500ms_10k_files`, `test_req_04_git_repo_10k_files` |
-| REQ-5 | scan.py | `test_req_05_deps_only_no_sast` |
-| REQ-6 | scan.py | `test_req_06_source_only_no_sca` |
-| REQ-7 | baseline.py | `test_req_07_fallback_exclusions`, `test_req_07_git_tracked_and_untracked_not_ignored` |
+| REQ-5 | config.py, scan.py | `test_req_05_sast_off_never_runs_sast`, `test_req_05_06_rescan_never_runs_a_disabled_scan` |
+| REQ-6 | config.py, scan.py | `test_req_06_sca_off_never_runs_sca`, `test_req_06_both_off_runs_nothing_and_prints_nothing` |
+| REQ-7 | baseline.py | `test_req_07_fallback_exclusions`, `test_req_07_git_tracked_and_untracked_not_ignored`, `test_req_07_claude_dir_not_in_baseline` |
 | REQ-8 | baseline.py, scan.py | `test_req_08_missing_baseline` |
 | REQ-9 | state.py | `test_req_09_state_in_temp_not_project`, `test_req_09_snapshot_silent_and_writes_only_temp` |
 | REQ-10 | scan.py, baseline.py | `test_req_10_11_40_no_loop_under_autofix`, `test_req_10_rebaseline_even_without_snapshot` |
@@ -112,7 +111,7 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 | REQ-24 | helper.py, cli.py | `test_req_24_approval_runs_auth_then_retries_scan_once`, `test_req_24_retry_reports_findings_as_untrusted` |
 | REQ-25 | helper.py, state.py | `test_req_25_decline_names_reason_and_is_not_asked_again`, `test_req_25_declined_state_survives_new_turn` |
 | REQ-26 | all modules | `test_req_26_token_not_echoed_or_passed_on_the_command_line`, `test_req_26_source_does_not_touch_token_or_auth_config` |
-| REQ-27 | cli.py, scan.py | `test_req_27_known_code_disabled_strings`, `test_req_27_code_disabled_only_for_sast` |
+| REQ-27 | cli.py, scan.py | `test_req_27_known_code_disabled_strings`, `test_req_27_code_disabled_only_for_sast`, `test_req_27_sast_disabled_by_config_still_lets_sca_run` |
 | REQ-28 | cli.py | `test_req_28_unknown_error_first_line`, `test_req_28_unknown_error_no_text` |
 | REQ-29 | cli.py | `test_req_29_timeout_kills_and_reports`, `test_req_29_timed_out` |
 | REQ-30 | cli.py, report.py | `test_req_30_exit_2_failed`, `test_req_30_exit_3_nothing_to_scan` |
@@ -132,8 +131,22 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 | REQ-44 | all modules, CI | `test_req_44_which_ignores_cwd_on_windows`, `test_req_44_which_skips_relative_path_entries_on_windows` |
 | REQ-45 | hooks.json launcher | `test_req_45_python_missing_message`, `test_req_45_unusable_python_is_skipped` |
 | REQ-46 | helper.py, snyk-mode.md | `test_req_46_valid_mode_creates_config_and_dir`, `test_req_46_preserves_other_keys` |
-| REQ-47 | scan.py, snyk-scan.md | `test_req_47_scan_runs_both_without_changes`, `test_req_47_scan_reports_findings_as_untrusted` |
+| REQ-47 | helper.py (cmd_scan), snyk-scan.md | `test_req_47_scan_runs_both_without_changes`, `test_req_47_scan_runs_only_enabled_scans`, `test_req_47_scan_reports_findings_as_untrusted` |
 | REQ-48 | config.py, cli.py | `test_req_48_timeout` |
 | REQ-49 | config.py, report.py | `test_req_49_threshold`, `test_req_49_threshold_excludes_lower` |
-| REQ-50 | commands/snyk-mode.md, helper.py, config.py | `test_req_50_get_config_defaults`, `test_req_50_get_config_shows_current_values` |
+| REQ-50 | commands/snyk-mode.md, helper.py, config.py | `test_req_50_get_config_defaults`, `test_req_50_get_config_shows_current_values`, `test_req_50_command_file_interview_asks_sast_sca`, `test_req_50_set_config_writes_all_in_one_keeping_other_keys` |
 | REQ-51 | helper.py (cmd_scan), report.py | `test_req_51_scan_states_mode_and_snyk_mode_every_run`, `test_req_51_scan_shows_configured_mode_and_runs_same_scans` |
+| REQ-52 | config.py, helper.py | `test_req_52_sast_sca_default_true`, `test_req_52_non_boolean_is_true_with_named_warning`, `test_req_52_set_config_writes_sast_sca_keeping_other_keys`, `test_req_52_get_config_reports_off_and_non_boolean_warning` |
+
+## Change 2026-10-31: any change triggers both scans, scans are switchable
+Requested by the user. Spec updated first (REQ-1 to 6, 27, 47, 50, new REQ-52). Decisions taken with the user: a turn that changed any file triggers the enabled scans (the baseline and diff stay, so no-change turns still cost nothing); config keys are booleans `sast` and `sca`, both default `true`.
+
+Approach:
+- Config gains `sast` and `sca` (invalid value falls back to `true` with a warning, same pattern as REQ-42).
+- File classification goes away. `baseline.changes_since` returns just the sorted list of changed paths. `files.py` and its tests are deleted. `scan.run_scans` runs SAST then SCA, each only if enabled, with no dependency between them.
+- `/snyk-scan` skips the change check but honors the switches (decision for the user to confirm: a user who turned SAST off because their org lacks Snyk Code should not get SAST from `/snyk-scan`).
+- `/snyk-mode`, `get-config` and `set-config` learn the two keys. The interview asks two more yes/no questions.
+- Unchanged: install and auth approval flows, modes, no-loop guarantee, autofix re-scan (re-scans only the scans that had findings, so it also respects the switches).
+- Version is not bumped here. Release and tag are the user's call.
+
+Tasks T19 to T22 in tasks.md run in order, each in a fresh agent. T22 is a review pass by an agent that did not write the code.

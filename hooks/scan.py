@@ -1,4 +1,4 @@
-"""Stop hook: diff against the turn baseline and scan what changed (report mode).
+"""Stop hook: diff against the turn baseline and run the enabled scans if anything changed (report mode).
 
 Report mode ends the turn: results go out as {"systemMessage": ...} with exit 0.
 Suggest and autofix continue the turn once with {"decision": "block", "reason": ...}
@@ -17,20 +17,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lib import baseline, cli, config, report, state, stdio  # noqa: E402
 
-HINT = ("Snyk scan plugin is in report mode. Run /snyk-mode to change it "
-        "(report, suggest, autofix).")
+HINT = ("Snyk scan plugin is in report mode. Change mode and scans with /snyk-mode "
+        "(modes: report, suggest, autofix).")
 
 
 def run_scans(changes, cfg, root):
-    """Run the scans the changes call for. Returns a list of (kind, cli.Result).
+    """Run every enabled scan, SAST then SCA (REQ-1, 2, 5, 6, 27). `changes` is not
+    inspected: the caller decided that something changed. Returns [(kind, cli.Result)].
+    A scan's outcome never decides whether the other runs.
 
     This is the one place that turns a CLI status into an outcome, so the install
     and auth approval flows can hook in here later.
     """
     results = []
-    if changes.source:
+    if cfg.sast:
         results.append(("sast", cli.run_scan("sast", root, cfg.timeout_seconds)))
-    if changes.dependency:
+    if cfg.sca:
         results.append(("sca", cli.run_scan("sca", root, cfg.timeout_seconds)))
     return results
 
@@ -131,9 +133,11 @@ def rescan(st, root, cfg):
     """The single autofix re-scan (REQ-40, 41). Returns the message to show."""
     pending = st["fix_pending"]
     lines = ["Snyk autofix re-scan:"]
+    ran = False
     for kind in ("sast", "sca"):
-        if kind not in pending:
+        if kind not in pending or not getattr(cfg, kind):  # never run a disabled scan
             continue
+        ran = True
         before = [report.Finding(*f) for f in pending[kind]]
         res = cli.run_scan(kind, root, cfg.timeout_seconds)
         after = None
@@ -147,7 +151,7 @@ def rescan(st, root, cfg):
             lines.append(report.format_scan(kind, res, cfg.severity_threshold))
         else:
             lines.append(report.format_fix_summary(kind, before, after))
-    return "\n".join(lines + cfg.warnings)
+    return "\n".join(lines + cfg.warnings) if ran else ""
 
 
 def main():
@@ -170,7 +174,8 @@ def main():
                 st["rescan_done"] = True
                 st["fix_pending"] = None
                 state.save(session_id, st)
-                sys.stdout.write(json.dumps({"systemMessage": message}))
+                if message:
+                    sys.stdout.write(json.dumps({"systemMessage": message}))
             return 0
         if st["fix_pending"]:  # stale: a continuation that never came
             st["fix_pending"] = None
@@ -182,6 +187,8 @@ def main():
 
         cfg = config.load(root)
         results = run_scans(changes, cfg, root)
+        if not results:  # REQ-6: both scans off, nothing runs and nothing is printed
+            return 0
         missing = [k for k, r in results if r.status == cli.NOT_INSTALLED]
         ask_install = bool(missing) and not (st["install_declined"] or st["install_failed"])
         unauth = [k for k, r in results if r.status == cli.NOT_AUTHENTICATED]

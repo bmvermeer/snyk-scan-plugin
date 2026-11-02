@@ -42,10 +42,9 @@ class DiffTest(TmpCase):
         write(d, "package.json", "{}")
         base = baseline.take(d)
         ch = baseline.changes_since(d, base)
-        self.assertFalse(ch)
-        self.assertEqual((ch.source, ch.dependency), ([], []))
+        self.assertEqual(ch, [])
 
-    def test_changes_classified(self):
+    def test_req_01_any_file_type_is_a_change_sorted(self):
         d = self.tmp()
         write(d, "app.js", "a")
         write(d, "README.md", "r")
@@ -55,15 +54,15 @@ class DiffTest(TmpCase):
         write(d, "package-lock.json", "{}")
         write(d, "README.md", "changed")
         ch = baseline.changes_since(d, base)
-        self.assertEqual(ch.source, ["app.js", "new/mod.py"])
-        self.assertEqual(ch.dependency, ["package-lock.json"])
+        self.assertEqual(ch, ["README.md", "app.js", "new/mod.py", "package-lock.json"])
 
-    def test_touch_without_content_change_is_not_a_change(self):
+    def test_touch_counts_as_change_because_nothing_is_hashed(self):
+        # REQ-4 (plan R4): hashing every file blew the 500 ms budget at 10,000 files.
         d = self.tmp()
         p = write(d, "app.js", "same")
         base = baseline.take(d)
         os.utime(p, (time.time() + 50, time.time() + 50))
-        self.assertFalse(baseline.changes_since(d, base))
+        self.assertEqual(baseline.changes_since(d, base), ["app.js"])
 
     def test_same_size_edit_detected(self):
         d = self.tmp()
@@ -71,25 +70,25 @@ class DiffTest(TmpCase):
         base = baseline.take(d)
         write(d, "app.js", "bbbb")
         os.utime(p, (time.time() + 5, time.time() + 5))
-        self.assertEqual(baseline.changes_since(d, base).source, ["app.js"])
+        self.assertEqual(baseline.changes_since(d, base), ["app.js"])
 
     def test_deleted_file_is_not_a_change(self):
         d = self.tmp()
         p = write(d, "app.js", "a")
         base = baseline.take(d)
         os.remove(p)
-        self.assertFalse(baseline.changes_since(d, base))
+        self.assertEqual(baseline.changes_since(d, base), [])
 
     def test_req_08_missing_baseline(self):
         d = self.tmp()
         write(d, "app.js", "a")
         self.assertIsNone(baseline.changes_since(d, None))
 
-    def test_only_relevant_files_are_recorded(self):
+    def test_req_01_every_file_type_is_recorded(self):
         d = self.tmp()
         write(d, "app.js")
         write(d, "README.md")
-        self.assertEqual(sorted(baseline.take(d)), ["app.js"])
+        self.assertEqual(sorted(baseline.take(d)), ["README.md", "app.js"])
 
 
 class FileSetTest(TmpCase):
@@ -99,6 +98,24 @@ class FileSetTest(TmpCase):
                     "target/o.java", "venv/l.py", ".venv/l.py", "pkg/__pycache__/c.py"):
             write(d, rel)
         self.assertEqual(sorted(baseline.take(d)), ["src/a.js"])
+
+    def test_req_07_claude_dir_not_in_baseline(self):
+        d = self.tmp()
+        write(d, "src/a.js", "a")
+        write(d, ".claude/snyk-plugin.json", "{}")
+        self.assertEqual(sorted(baseline.take(d)), ["src/a.js"])
+        if HAVE_GIT:
+            g = self.tmp()
+            git(g, "init", "-q")
+            write(g, "src/a.js", "a")
+            write(g, ".claude/settings.json", "{}")
+            git(g, "add", "-f", "-A")  # even a tracked .claude file is excluded
+            git(g, "commit", "-qm", "init")
+            write(g, ".claude/snyk-plugin.json", "{}")
+            self.assertEqual(sorted(baseline.take(g)), ["src/a.js"])
+            base = baseline.take(g)
+            write(g, ".claude/snyk-plugin.json", "{\"mode\": \"suggest\"}")
+            self.assertEqual(baseline.changes_since(g, base), [])
 
     @unittest.skipUnless(HAVE_GIT, "git not installed")
     def test_req_07_git_tracked_and_untracked_not_ignored(self):
@@ -113,7 +130,7 @@ class FileSetTest(TmpCase):
         write(d, "node_modules/p/i.js")
         # dist is not ignored here, so in git mode it is included (unlike the fallback)
         write(d, "dist/kept.js")
-        self.assertEqual(sorted(baseline.take(d)), ["dist/kept.js", "tracked.js", "untracked.py"])
+        self.assertEqual(sorted(baseline.take(d)), [".gitignore", "dist/kept.js", "tracked.js", "untracked.py"])
 
     @unittest.skipUnless(HAVE_GIT, "git not installed")
     def test_git_deleted_tracked_file_ignored(self):
@@ -205,7 +222,7 @@ class PerformanceTest(TmpCase):
         t = time.perf_counter()
         ch = baseline.changes_since(d, base)
         again = time.perf_counter() - t
-        self.assertFalse(ch)
+        self.assertEqual(ch, [])
         self.assertLess(first, 0.5, "baseline took %.3fs" % first)
         self.assertLess(again, 0.5, "no-change diff took %.3fs" % again)
 
@@ -219,7 +236,7 @@ class PerformanceTest(TmpCase):
         base = baseline.take(d)
         ch = baseline.changes_since(d, base)
         total = time.perf_counter() - t
-        self.assertFalse(ch)
+        self.assertEqual(ch, [])
         self.assertLess(total / 2, 0.5, "git mode averaged %.3fs" % (total / 2))
 
 

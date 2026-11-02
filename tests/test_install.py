@@ -148,7 +148,7 @@ class InstallTest(ScanHookTest):
         self.assertEqual(self.installs(), ["npm install -g snyk"])
         self.assertIn("installed", r.stdout)
         self.assertIn("SAST: no issues", r.stdout)
-        self.assertEqual(len(self.calls()), 1)
+        self.assertEqual(len(self.calls()), 2)
         self.assertIsNone(self.state()["pending"])
 
     def test_req_14_retry_reports_findings_as_untrusted(self):

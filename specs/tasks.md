@@ -122,7 +122,7 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
 - [ ] **T17: Manual end-to-end release check for 0.1.0** (macOS and Linux only; Windows run is FUTURE WORK)
   - Satisfies: Success criteria
   - Depends on: T14 (macOS, Linux), T15, T16. T13 is parked.
-  - Acceptance: With a real Snyk account: a source edit gives a SAST result, a lockfile edit gives an SCA result only, and a machine with no CLI or login reaches a first scan on approvals alone. Version is `0.1.0` in `plugin.json`.
+  - Acceptance: With a real Snyk account: any edit gives a SAST and an SCA result (with `"sast": false` only SCA), and a machine with no CLI or login reaches a first scan on approvals alone. Version is `0.1.0` in `plugin.json`.
   - Verify: Recorded manual run on macOS, Linux, and Windows.
   - Files: none
 
@@ -133,3 +133,35 @@ Rules: one task at a time. Write the failing test first. A task is done only whe
   - Verify: `test_req_46_*`, `test_req_50_*`, `test_req_51_*`; full suite green.
   - Files: `commands/snyk-mode.md`, `commands/snyk-scan.md`, `hooks/helper.py`, `tests/test_commands.py`, `README.md`
   - Note: done. New helper subcommands `get-config` and `set-config --mode/--severity/--timeout`; the interview uses `AskUserQuestion` (falls back to plain text). The `/snyk-scan` mode line is appended in `cmd_scan` after the untrusted blocks. Untested on a real Claude session and on Windows (Git Bash quoting as for the other commands).
+
+## Change 2026-10-31: any change triggers both scans, scans are switchable
+Plan: specs/plan.md, section "Change 2026-10-31". Each task runs in a fresh agent, in order. Full suite green is part of every Verify.
+
+- [x] **T19: Config toggles `sast` and `sca`**
+  - Satisfies: REQ-52
+  - Depends on: none
+  - Acceptance: `config.load` exposes `cfg.sast` and `cfg.sca`, default `True`, `True` for a missing key or file, and `True` plus a named warning for a non-boolean. `helper.py get-config` reports both and `set-config` accepts `--sast`/`--sca` (`on|off`), keeps other keys, writes nothing on invalid input.
+  - Verify: `test_req_52_*` in `tests/test_config.py` and `tests/test_commands.py`; full suite.
+  - Files: `hooks/lib/config.py`, `hooks/helper.py`, `tests/test_config.py`, `tests/test_commands.py`
+
+- [x] **T20: Any change runs the enabled scans; delete classification**
+  - Satisfies: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-27, REQ-47
+  - Depends on: T19
+  - Acceptance: `baseline.changes_since` returns the sorted list of changed paths (empty means no change). `scan.run_scans` runs SAST then SCA, each only if enabled, independently of the other's result. `files.py` and `tests/test_files.py` are deleted and nothing imports them. `/snyk-scan` (`helper.py cmd_scan`) runs every enabled scan regardless of changes. Autofix re-scan unchanged in behavior. Tests renamed or rewritten to the new REQ text (for example `test_req_05_sast_off_never_runs_sast`), including the SAST-disabled-but-SCA-runs case. REQ-4 timing test still passes.
+  - Verify: full suite; `grep -rn "files\." hooks` finds no classification use.
+  - Files: `hooks/lib/baseline.py`, `hooks/lib/files.py` (delete), `hooks/scan.py`, `hooks/helper.py`, `tests/test_files.py` (delete), `tests/test_baseline.py`, `tests/test_scan_*.py`, `tests/test_commands.py`
+
+- [x] **T21: Commands and skill**
+  - Satisfies: REQ-46, REQ-50, REQ-51
+  - Depends on: T19, T20
+  - Acceptance: `commands/snyk-mode.md` interview asks for `sast` and `sca` (current value shown, default on, keep-current allowed) and writes them in the same single step. `commands/snyk-scan.md` and `skills/snyk-scan/SKILL.md` no longer say that scans depend on source or dependency changes, and mention the switches. The `/snyk-scan` mode line also shows which scans are on.
+  - Verify: `test_req_50_*`, `test_req_51_*`; full suite.
+  - Files: `commands/snyk-mode.md`, `commands/snyk-scan.md`, `skills/snyk-scan/SKILL.md`, `hooks/helper.py`, `tests/test_commands.py`
+
+- [x] **T22: Docs, REQ table, and independent review**
+  - Satisfies: all of the above
+  - Depends on: T19, T20, T21
+  - Decisions (user, 2026-10-31): the baseline records size and mtime only, with no content hashing (a touched-but-identical file counts as a change; REQ-4 stays at 500 ms); `.claude/` is excluded from the baseline (REQ-7 amended). Implement the `.claude/` exclusion in `hooks/lib/baseline.py` with a test (`test_req_07_claude_dir_not_in_baseline`, git and non-git) and fix every doc that still mentions hashing (plan R4, README, baseline.py wording).
+  - Acceptance: README (behavior, configuration table with `sast`/`sca`, how it works, limitations), `CLAUDE.md` (architecture and scan rules), and `specs/plan.md` (components list, REQ-coverage rows for REQ-1 to 6, 47, 50, 52) match the code. No mention of source versus dependency classification remains outside history notes. A reviewer who did not write the code checks the diff against spec REQ-1 to 6, 27, 47, 50, 52 and reports mismatches, which are fixed.
+  - Verify: full suite green; `grep -rniE "source files|dependency files|classif" README.md CLAUDE.md hooks commands skills` shows no stale statements.
+  - Files: `README.md`, `CLAUDE.md`, `specs/plan.md`

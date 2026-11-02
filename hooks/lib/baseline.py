@@ -1,30 +1,21 @@
 """File baseline and diff (REQ-3, 4, 7, 8, 10).
 
-A baseline maps relative path (always "/" separators) to [size, mtime_ns, sha256].
-Only source and dependency files are recorded. Size and mtime let an unchanged file
-skip hashing, which keeps a no-change turn to one directory listing plus stats.
+A baseline maps relative path (always "/" separators) to [size, mtime_ns].
+Every file in the file set is recorded, whatever its type (REQ-1, 2), except anything
+under `.claude/` (REQ-7), so `/snyk-mode` config edits never count as a change. A file counts as
+changed when it is new or its size or mtime differs. Nothing is hashed:
+reading every file of a 10,000-file tree exceeds the REQ-4 budget (plan R4), so a no-change
+turn stays at one directory listing plus stats.
 """
-import hashlib
 import os
 import stat
 import subprocess
 
-from . import files, where
+from . import where
 
 FALLBACK_EXCLUDES = frozenset(
-    ["node_modules", ".git", "dist", "build", "target", "venv", ".venv", "__pycache__"]
+    [".claude", "node_modules", ".git", "dist", "build", "target", "venv", ".venv", "__pycache__"]
 )
-
-
-class Changes(object):
-    """Added or modified files since the baseline. Deleted files are not changes."""
-
-    def __init__(self, source, dependency):
-        self.source = source
-        self.dependency = dependency
-
-    def __bool__(self):
-        return bool(self.source or self.dependency)
 
 
 def _git_files(root):
@@ -41,7 +32,8 @@ def _git_files(root):
         return None
     if r.returncode != 0:
         return None
-    return [p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p]
+    paths = r.stdout.decode("utf-8", "surrogateescape").split("\0")
+    return [p for p in paths if p and p != ".claude" and not p.startswith(".claude/")]
 
 
 def _walk_files(root):
@@ -59,45 +51,31 @@ def list_files(root):
     return found if found is not None else _walk_files(root)
 
 
-def _hash(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def take(root, previous=None):
-    """Build a baseline. Entries equal in size and mtime to `previous` reuse its hash."""
-    previous = previous or {}
+def take(root, previous=None):  # `previous` is accepted for callers that re-baseline
+    """Build a baseline: relative path -> [size, mtime_ns] for every regular file."""
     result = {}
     for rel in list_files(root):
-        if files.classify(rel) is None:
-            continue
         full = os.path.join(root, *rel.split("/"))
         try:
             st = os.lstat(full)
             if not stat.S_ISREG(st.st_mode):
                 continue
-            old = previous.get(rel)
-            if old and old[0] == st.st_size and old[1] == st.st_mtime_ns:
-                digest = old[2]
-            else:
-                digest = _hash(full)
         except OSError:
             continue
-        result[rel] = [st.st_size, st.st_mtime_ns, digest]
+        result[rel] = [st.st_size, st.st_mtime_ns]
     return result
 
 
 def changes_since(root, base):
-    """Return Changes against `base`, or None when there is no baseline (REQ-8)."""
+    """Sorted paths added or modified since `base`; empty means no change.
+
+    Returns None when there is no baseline (REQ-8). Deleted files are not changes.
+    """
     if base is None:
         return None
-    source, dependency = [], []
-    for rel, entry in take(root, base).items():
+    changed = []
+    for rel, entry in take(root).items():
         old = base.get(rel)
-        if old is not None and old[2] == entry[2]:
-            continue
-        (source if files.classify(rel) == files.SOURCE else dependency).append(rel)
-    return Changes(sorted(source), sorted(dependency))
+        if old is None or old != entry:
+            changed.append(rel)
+    return sorted(changed)

@@ -1,4 +1,4 @@
-"""Per-project config from `.claude/snyk-plugin.json` (REQ-35, 42, 48, 49).
+"""Per-project config from `.claude/snyk-plugin.json` (REQ-35, 42, 48, 49, 52).
 
 Never raises: a bad file or value falls back to the default and adds a warning.
 """
@@ -18,6 +18,8 @@ class Config(object):
         self.mode = DEFAULT_MODE
         self.severity_threshold = DEFAULT_THRESHOLD
         self.timeout_seconds = DEFAULT_TIMEOUT
+        self.sast = True
+        self.sca = True
         self.file_exists = False
         self.warnings = []
 
@@ -57,4 +59,12 @@ def load(project_dir):
             cfg.timeout_seconds = s
         else:
             cfg.warnings.append("invalid timeoutSeconds %r in %s, using %d" % (s, CONFIG_PATH, DEFAULT_TIMEOUT))
+
+    for key in ("sast", "sca"):  # REQ-52
+        if key in data:
+            v = data[key]
+            if isinstance(v, bool):
+                setattr(cfg, key, v)
+            else:
+                cfg.warnings.append("invalid %s %r in %s, using true" % (key, v, CONFIG_PATH))
     return cfg

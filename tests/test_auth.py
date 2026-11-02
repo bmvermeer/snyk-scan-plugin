@@ -78,7 +78,7 @@ class AuthTest(ScanHookTest):
         r = self.helper("auth")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.auth_calls(), ["auth"])
-        self.assertEqual(len(self.scan_calls()) - before, 1)
+        self.assertEqual(len(self.scan_calls()) - before, 2)  # SAST and SCA were pending
         self.assertIn("authenticated", r.stdout)
         self.assertIn("SAST: no issues", r.stdout)
         self.assertIsNone(self.state()["pending"])
@@ -94,7 +94,7 @@ class AuthTest(ScanHookTest):
         before = len(self.scan_calls())
         # Login "succeeds" but the stub is not authenticated afterwards.
         r = self.helper("auth", SNYK_STUB_AUTHED_FILE=os.path.join(self.tmp, "no", "such", "file"))
-        self.assertEqual(len(self.scan_calls()) - before, 1)
+        self.assertEqual(len(self.scan_calls()) - before, 2)  # SAST and SCA were pending
         self.assertIn("not authenticated", r.stdout)
         self.assertTrue(self.state()["auth_failed"])
 

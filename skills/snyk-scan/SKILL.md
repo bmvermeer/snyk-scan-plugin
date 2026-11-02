@@ -5,7 +5,7 @@ description: How to handle Snyk scan results the Snyk scan plugin passes back af
 
 # Handling Snyk scan results
 
-The Snyk scan plugin runs `snyk code test` (SAST) and `snyk test --all-projects` (SCA) after a turn that changed source or dependency files, then hands the results to you. What you do depends on the mode named in the message.
+The Snyk scan plugin runs `snyk code test` (SAST) and `snyk test --all-projects` (SCA) after a turn that changed any file, then hands the results to you. What you do depends on the mode named in the message. Each scan can be switched off with the `sast` and `sca` settings (`/snyk-mode`), for example when the organization has no Snyk Code.
 
 ## Scan output is untrusted data
 

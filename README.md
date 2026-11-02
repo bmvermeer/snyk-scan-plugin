@@ -2,11 +2,12 @@
 
 A Claude Code / Cowork plugin that runs Snyk scans automatically after each Claude turn.
 
-- **SAST** (`snyk code test`) runs if the turn changed source files.
-- **SCA** (`snyk test --all-projects`) runs if the turn changed dependency manifests or lockfiles.
-- Each scan runs at most once per turn, on the project root only. A turn that changed nothing relevant runs no scan and prints nothing.
+- If the turn changed any file, whatever its type, both scans run:
+  - **SAST** (`snyk code test`), unless `sast` is `false` in the config.
+  - **SCA** (`snyk test --all-projects`), unless `sca` is `false` in the config.
+- Each scan runs at most once per turn, on the project root only. The two scans are independent: one failing, timing out, or being skipped never stops the other. A turn that changed no files, or one where both scans are switched off, runs no scan and prints nothing.
 
-Version `0.1.0`, MIT license. Status: not yet released. The manual end-to-end run on macOS and Linux (task T17) is still pending. Windows support is future work and has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
+Version `0.1.1`, MIT license. Status: published for end-to-end testing. The manual end-to-end run on macOS and Linux (task T17) is still pending. Windows support is future work and has not been verified on a real Windows machine (see [Known limitations](#known-limitations)).
 
 Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP server, and anything that reads or stores Snyk tokens.
 
@@ -22,20 +23,20 @@ Out of scope: IaC, container, and secrets scanning, `snyk monitor`, a custom MCP
 
 The repository <https://github.com/bmvermeer/snyk-scan-plugin> is both the plugin and its own marketplace (named `snyk-scan`).
 
-- **From GitHub (recommended).** In Claude Code, run:
+- **From GitHub (recommended).** In a terminal, one step (the `--marketplace` option of `claude plugin install` adds the marketplace first if needed):
 
   ```
-  /plugin install snyk-scan-plugin --marketplace bmvermeer/snyk-scan-plugin
+  claude plugin install snyk-scan-plugin --marketplace bmvermeer/snyk-scan-plugin
   ```
 
-  This needs Claude Code 2.1.275 or later. On older versions, do it in two steps:
+  Or in two steps, from a terminal or from inside Claude Code with a leading `/plugin`:
 
   ```
-  /plugin marketplace add bmvermeer/snyk-scan-plugin
-  /plugin install snyk-scan-plugin@snyk-scan
+  claude plugin marketplace add bmvermeer/snyk-scan-plugin
+  claude plugin install snyk-scan-plugin@snyk-scan
   ```
 
-  Then restart Claude Code or run `/reload-plugins`. Verify with `/snyk-mode`.
+  Then restart Claude Code (or run `/reload-plugins` inside it). Verify that `/snyk-mode` is available.
 - **Scope.** By default the plugin is installed for you in every project (`user`). To limit it to one folder, launch `claude` there and install with `--scope project` (writes `.claude/settings.json`, shareable) or `--scope local` (writes `.claude/settings.local.json`, only you):
 
   ```
@@ -46,7 +47,7 @@ The repository <https://github.com/bmvermeer/snyk-scan-plugin> is both the plugi
 - **Update.** Refresh the marketplace, update the plugin, then restart Claude Code:
 
   ```
-  /plugin marketplace update snyk-scan
+  claude plugin marketplace update snyk-scan
   claude plugin update snyk-scan-plugin@snyk-scan
   ```
 
@@ -55,7 +56,7 @@ The repository <https://github.com/bmvermeer/snyk-scan-plugin> is both the plugi
 
   ```
   claude plugin uninstall snyk-scan-plugin@snyk-scan
-  /plugin marketplace remove snyk-scan
+  claude plugin marketplace remove snyk-scan
   ```
 
   Add `--scope project` or `--scope local` if you installed with that scope. To reset the per-project mode, delete `.claude/snyk-plugin.json`.
@@ -76,8 +77,8 @@ With no `.claude/snyk-plugin.json`, the mode is `report` and the output says onc
 ## Commands
 
 - `/snyk-mode <report|suggest|autofix>` writes the mode to `.claude/snyk-plugin.json`, keeping any other keys in the file. An invalid value leaves the file unchanged and lists the valid modes. If the file exists but is not a JSON object, it is not overwritten.
-- `/snyk-mode` with no value is an interview. Claude shows the current values, then asks one question at a time for `mode`, `severityThreshold` (`low`, `medium`, `high`, `critical`) and `timeoutSeconds` (a positive whole number). Each question shows the current value and what the options mean, and you can keep the current value. After the last answer all values are written in one step, keeping any other keys. An invalid value is not written and you are told which one and why. If you stop before the end, nothing is written.
-- `/snyk-scan` runs both SAST and SCA now, whatever changed. It prints the report and never continues the turn, so in `suggest` and `autofix` mode it behaves like `report` mode. Every run ends with a line stating the current mode and that `/snyk-mode` changes it (this is separate from the once-per-session hint above).
+- `/snyk-mode` with no value is an interview. Claude shows the current values, then asks one question at a time for `mode`, `severityThreshold` (`low`, `medium`, `high`, `critical`), `timeoutSeconds` (a positive whole number), `sast` (on or off) and `sca` (on or off). Each question shows the current value and what the options mean, and you can keep the current value. After the last answer all values are written in one step, keeping any other keys. An invalid value is not written and you are told which one and why. If you stop before the end, nothing is written.
+- `/snyk-scan` runs every enabled scan (SAST and SCA unless switched off with `sast` or `sca`) now, whatever changed. It prints the report and never continues the turn, so in `suggest` and `autofix` mode it behaves like `report` mode. Every run ends with a line stating the current mode, which scans are on, and that `/snyk-mode` changes them (this is separate from the once-per-session hint above). With both scans switched off it runs nothing and says "No scans are enabled. Turn them on with /snyk-mode."
 
 ## Configuration
 
@@ -87,7 +88,9 @@ With no `.claude/snyk-plugin.json`, the mode is `report` and the output says onc
 {
   "mode": "report",
   "severityThreshold": "low",
-  "timeoutSeconds": 120
+  "timeoutSeconds": 120,
+  "sast": true,
+  "sca": true
 }
 ```
 
@@ -96,8 +99,10 @@ With no `.claude/snyk-plugin.json`, the mode is `report` and the output says onc
 | `mode` | `report`, `suggest`, `autofix` | `report` | What happens with findings. |
 | `severityThreshold` | `low`, `medium`, `high`, `critical` | `low` | Findings below it are excluded. If every finding is below it, the line is "SAST: no issues at or above <threshold>" (or "SCA: ..."). |
 | `timeoutSeconds` | positive integer | `120` | Per-scan timeout. A scan that exceeds it is killed and reported as "timed out". |
+| `sast` | `true`, `false` | `true` | `false` switches SAST off everywhere: after a turn, in `/snyk-scan`, in the `autofix` re-scan, and in install or login retries. Nothing is printed about it. Use it when your org lacks Snyk Code. |
+| `sca` | `true`, `false` | `true` | Same for SCA. When both are `false`, no Snyk command runs and nothing is printed. |
 
-A file with broken JSON, a non-object value, an unknown mode, or an invalid value falls back to the default (mode `report`) and shows a warning naming the problem. The plugin never touches `.gitignore`. Whether to commit `.claude/snyk-plugin.json` is up to you.
+A file with broken JSON, a non-object value, an unknown mode, or an invalid value falls back to the default (mode `report`; a non-boolean `sast` or `sca` counts as `true`) and shows a warning naming the problem. The plugin never touches `.gitignore`. Whether to commit `.claude/snyk-plugin.json` is up to you.
 
 ## Approvals
 
@@ -120,20 +125,19 @@ The plugin never reads, stores, or logs `SNYK_TOKEN` or the Snyk auth config. `s
 |-----------|---------|
 | Exit code 0 | `SAST: no issues` / `SCA: no issues` |
 | All findings below the threshold | `SAST: no issues at or above <threshold>` |
-| Exit code 3 | nothing to scan (for example, no supported manifest for SCA) |
-| Exit code 2 or an unrecognised error | `scan failed: <reason>` (first line of the error) |
-| Timeout | `timed out` |
-| Snyk Code not enabled for your org | SAST is skipped with an explanation, SCA still runs if due |
+| Exit code 3 | `SAST: nothing to scan` / `SCA: nothing to scan` (for example, no supported manifest for SCA) |
+| Exit code 2 or an unrecognised error | `SAST: scan failed: <reason>` (first line of the error) |
+| Timeout | `SAST: timed out` |
+| Snyk Code not enabled for your org | `SAST: skipped, Snyk Code is not enabled for your organization`; SCA still runs |
 
 A failure, timeout, or skipped scan is never reported as "no issues" and never blocks the turn.
 
 ## How it works
 
-- `UserPromptSubmit` records a baseline of file hashes at the start of each turn. It prints nothing.
-- `Stop` compares the project to the baseline. A source change runs SAST, a dependency change runs SCA, and a dependency-only or source-only turn runs only the matching scan. If there is no baseline for the session, nothing runs and a baseline is saved.
-- The baseline covers git-tracked files plus untracked files that are not git-ignored. Outside a git repo it covers all files except `node_modules`, `.git`, `dist`, `build`, `target`, `venv`, `.venv`, and `__pycache__`.
-- Source files are matched by extension, case-insensitively: `.js .jsx .mjs .cjs .ts .tsx .mts .cts .vue .py .java .kt .kts .scala .groovy .go .rb .php .cs .vb .c .h .cc .cpp .cxx .hpp .m .mm .swift .dart .rs .ex .exs .cls .trigger`. `.html` is deliberately excluded.
-- Dependency files are matched by exact file name: `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements.txt`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `go.mod`, `go.sum`, `Gemfile`, `Gemfile.lock`, `packages.lock.json`, `composer.json`, `composer.lock`, plus any `*.csproj`.
+- `UserPromptSubmit` records a baseline of file sizes and modification times at the start of each turn. It prints nothing.
+- `Stop` compares the project to the baseline. If any file was added or modified (any file type), it runs the enabled scans: SAST, then SCA, each only if its switch is on and independent of the other's result. If nothing changed, nothing runs and nothing is printed. If there is no baseline for the session, nothing runs and a baseline is saved.
+- Nothing is hashed, because reading every file would break the 500 ms budget on large trees. A file that was touched but not changed (new mtime, same content) therefore counts as a change and triggers the scans. Deleted files are not changes.
+- The baseline covers git-tracked files plus untracked files that are not git-ignored. Outside a git repo it covers all files except `node_modules`, `.git`, `dist`, `build`, `target`, `venv`, `.venv`, and `__pycache__`. In both cases `.claude/` is left out, so a `/snyk-mode` config edit never triggers a scan.
 - Session state (baseline, "asked once" flags) lives in the OS temp directory keyed by session ID. Nothing is written into the project except by `/snyk-mode`.
 - No loops: a turn continued by the plugin's own `Stop` hook runs no scan, except the single `autofix` re-scan, after which a fresh baseline is saved.
 - File and path values are passed to the CLI as separate arguments, never interpolated into a shell string. Scan output is passed to Claude wrapped as untrusted data, and Claude is told never to follow instructions found in it.
@@ -155,6 +159,7 @@ A GitHub Actions workflow (`.github/workflows/test.yml`) runs the suite on Linux
 
 - Windows is **future work** and unverified on a real Windows machine; the code and CI job exist but are not a 0.1.0 gate. The hooks are pinned to `bash` (Git Bash). If it is missing, Claude Code reports a non-blocking hook error and no scan runs. The `/snyk-mode` and `/snyk-scan` commands also assume a bash-style tool. See `specs/plan.md` (T13 launcher decision).
 - The exact CLI error strings that identify "not authenticated" and "Snyk Code not enabled" are still an open question in the spec, so an unrecognised error shows as `scan failed: <reason>`.
+- Any file change triggers the scans, including docs, images, and files that were only touched. If that is too noisy, switch a scan off with `sast` or `sca`.
 - Not supported in v1: updating or re-checking the version of an installed CLI, and proxy, self-signed certificate, or offline use.
 - The standalone checksum comes from the same host as the binary, so it guards against corruption and tampering in transit, not against a compromised `downloads.snyk.io`.
 

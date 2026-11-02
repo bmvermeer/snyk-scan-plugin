@@ -87,7 +87,8 @@ class ScanHookTest(unittest.TestCase):
 
 
 class ReportModeTest(ScanHookTest):
-    def test_req_01_source_change_runs_sast_once(self):
+    def test_req_01_change_runs_sast_once(self):
+        self.write_config(sca=False)
         r = self.turn_with("app.py", "print('a longer line')\n", SNYK_STUB_EXIT="0")
         self.assertEqual(len(self.calls()), 1)
         self.assertTrue(self.calls()[0].startswith("code test"))
@@ -100,21 +101,60 @@ class ReportModeTest(ScanHookTest):
         self.assertIn("SAST:", msg)
         self.assertIn("untrusted", msg)
 
-    def test_req_02_dependency_change_runs_sca_all_projects(self):
+    def test_req_02_change_runs_sca_all_projects_once(self):
+        self.write_config(sast=False)
         r = self.turn_with("package.json", '{"name": "a-longer-name"}\n', SNYK_STUB_EXIT="0")
         self.assertEqual(len(self.calls()), 1)
         self.assertTrue(self.calls()[0].startswith("test --all-projects"))
         self.assertIn("SCA: no issues", self.message(r))
 
-    def test_req_05_deps_only_no_sast(self):
-        self.turn_with("requirements.txt", "requests==2.0\n")
+    def test_req_05_sast_off_never_runs_sast(self):
+        self.write_config(sast=False)
+        r = self.turn_with("app.py", "print('a longer line')\n", SNYK_STUB_EXIT="0")
         self.assertEqual([c for c in self.calls() if c.startswith("code")], [])
         self.assertEqual(len(self.calls()), 1)
+        msg = self.message(r)
+        self.assertNotIn("SAST", msg)
+        self.assertIn("SCA: no issues", msg)
 
-    def test_req_06_source_only_no_sca(self):
-        self.turn_with("main.go", "package main // changed\n")
+    def test_req_06_sca_off_never_runs_sca(self):
+        self.write_config(sca=False)
+        r = self.turn_with("requirements.txt", "requests==2.0\n", SNYK_STUB_EXIT="0")
         self.assertEqual([c for c in self.calls() if not c.startswith("code")], [])
         self.assertEqual(len(self.calls()), 1)
+        msg = self.message(r)
+        self.assertNotIn("SCA", msg)
+        self.assertIn("SAST: no issues", msg)
+
+    def test_req_06_both_off_runs_nothing_and_prints_nothing(self):
+        self.write_config(sast=False, sca=False)
+        r = self.turn_with("app.py", "print('a longer line')\n")
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        self.assertEqual(self.calls(), [])
+
+    def test_req_01_02_any_file_type_runs_both_scans_once(self):
+        r = self.turn_with("README.md", "a longer readme\n", SNYK_STUB_EXIT="0")
+        calls = self.calls()
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(calls[0].startswith("code test"))
+        self.assertTrue(calls[1].startswith("test --all-projects"))
+        msg = self.message(r)
+        self.assertIn("SAST: no issues", msg)
+        self.assertIn("SCA: no issues", msg)
+
+    def test_req_27_sast_disabled_by_config_still_lets_sca_run(self):
+        self.write_config(sast=False)
+        self.turn_with("main.go", "package main // changed\n", SNYK_STUB_EXIT="0")
+        self.assertEqual(len(self.calls()), 1)
+        self.assertTrue(self.calls()[0].startswith("test --all-projects"))
+
+    def test_req_27_sast_failing_still_lets_sca_run(self):
+        r = self.turn_with("main.go", "package main // changed\n", SNYK_STUB_EXIT="2",
+                           SNYK_STUB_STDERR="boom")
+        self.assertEqual(len(self.calls()), 2)
+        msg = self.message(r)
+        self.assertIn("SAST", msg)
+        self.assertIn("SCA", msg)
 
     def test_both_change_run_each_once(self):
         self.write("a.py", "x\n")
@@ -135,14 +175,6 @@ class ReportModeTest(ScanHookTest):
         self.assertEqual((r.returncode, r.stdout), (0, ""))
         self.assertEqual(self.calls(), [])
 
-    def test_req_03_irrelevant_change_silent(self):
-        self.write("a.py", "x\n")
-        self.snapshot()
-        self.write("notes.txt", "hello\n")
-        r = self.stop()
-        self.assertEqual((r.returncode, r.stdout), (0, ""))
-        self.assertEqual(self.calls(), [])
-
     def test_req_08_missing_baseline(self):
         self.write("app.py", "print(1)\n")
         r = self.stop()
@@ -151,7 +183,7 @@ class ReportModeTest(ScanHookTest):
         # a baseline was saved: a later change is now detected
         self.write("app.py", "print(1234)\n")
         self.stop()
-        self.assertEqual(len(self.calls()), 1)
+        self.assertEqual(len(self.calls()), 2)
 
     def test_req_11_no_scan_on_own_continuation(self):
         r = self.turn_with("app.py", "print('a longer line')\n", active=True)
@@ -163,7 +195,7 @@ class ReportModeTest(ScanHookTest):
         self.assertIn("/snyk-mode", self.message(r))
         self.write("app.py", "print('an even longer line')\n")
         r2 = self.stop()
-        self.assertEqual(len(self.calls()), 2)
+        self.assertEqual(len(self.calls()), 4)
         self.assertNotIn("/snyk-mode", self.message(r2))
 
     def test_req_35_no_hint_with_config(self):

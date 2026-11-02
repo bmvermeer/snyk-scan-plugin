@@ -25,6 +25,34 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(c.file_exists)
         self.assertEqual(c.warnings, [])
 
+    def test_req_52_sast_sca_default_true(self):
+        for proj in (self.project(), self.project({"mode": "report"})):
+            c = config.load(proj)
+            self.assertIs(c.sast, True)
+            self.assertIs(c.sca, True)
+            self.assertEqual(c.warnings, [])
+
+    def test_req_52_sast_sca_false_respected(self):
+        c = config.load(self.project({"sast": False, "sca": True}))
+        self.assertEqual((c.sast, c.sca, c.warnings), (False, True, []))
+        c = config.load(self.project({"sast": True, "sca": False}))
+        self.assertEqual((c.sast, c.sca, c.warnings), (True, False, []))
+
+    def test_req_52_non_boolean_is_true_with_named_warning(self):
+        for bad in ("off", 0, None, "false", 1):
+            c = config.load(self.project({"sast": bad, "sca": False}))
+            self.assertIs(c.sast, True, bad)
+            self.assertIs(c.sca, False)
+            self.assertEqual(len(c.warnings), 1, bad)
+            self.assertIn("sast", c.warnings[0])
+            c = config.load(self.project({"sca": bad}))
+            self.assertIs(c.sca, True, bad)
+            self.assertIn("sca", c.warnings[0])
+
+    def test_req_52_broken_file_defaults_true(self):
+        c = config.load(self.project(raw="{ nope"))
+        self.assertEqual((c.sast, c.sca), (True, True))
+
     def test_valid_config(self):
         c = config.load(self.project({"mode": "autofix", "severityThreshold": "high",
                                       "timeoutSeconds": 30, "extra": 1}))

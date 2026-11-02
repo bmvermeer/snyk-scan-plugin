@@ -164,6 +164,50 @@ class CommandsTest(ScanHookTest):
         self.assertEqual((cfg.mode, cfg.severity_threshold, cfg.timeout_seconds, cfg.warnings),
                          ("suggest", "medium", 30, []))
 
+    def test_req_52_get_config_reports_sast_sca_defaults(self):
+        r = self.helper("get-config")
+        self.assertIn("sast: on (default)", r.stdout)
+        self.assertIn("sca: on (default)", r.stdout)
+
+    def test_req_52_get_config_reports_off_and_non_boolean_warning(self):
+        self.write_config(sast=False, sca="maybe")
+        r = self.helper("get-config")
+        self.assertIn("sast: off\n", r.stdout + "\n")
+        self.assertNotIn("sast: off (default)", r.stdout)
+        self.assertIn("sca: on (default)", r.stdout)
+        self.assertIn("sca", r.stdout.split("sca: on (default)", 1)[1])
+
+    def test_req_52_set_config_writes_sast_sca_keeping_other_keys(self):
+        self.write_config(mode="suggest", other="keep")
+        r = self.helper("set-config", "--sast", "off", "--sca", "on")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(self.read_config()),
+                         {"mode": "suggest", "other": "keep", "sast": False, "sca": True})
+        self.helper("set-config", "--sast", "on")
+        self.assertEqual(json.loads(self.read_config())["sast"], True)
+        self.assertEqual(json.loads(self.read_config())["sca"], True)
+
+    def test_req_52_set_config_invalid_writes_nothing_and_names_key(self):
+        self.write_config(mode="suggest")
+        before = self.read_config()
+        for args, word in ((("--sast", "maybe"), "sast"), (("--sca", "true"), "sca"),
+                           (("--sca", ""), "sca")):
+            r = self.helper("set-config", "--mode", "autofix", *args)
+            self.assertEqual(self.read_config(), before, args)
+            self.assertIn(word, r.stdout)
+            self.assertIn("unchanged", r.stdout)
+
+    def test_req_52_set_config_invalid_creates_no_file(self):
+        self.helper("set-config", "--sast", "nope")
+        self.assertFalse(os.path.exists(self.config_path()))
+
+    def test_req_52_set_config_result_loads_cleanly(self):
+        sys.path.insert(0, os.path.join(ROOT, "hooks"))
+        from lib import config
+        self.helper("set-config", "--sast", "off", "--sca", "off")
+        cfg = config.load(self.project)
+        self.assertEqual((cfg.sast, cfg.sca, cfg.warnings), (False, False, []))
+
     def test_req_50_no_value_set_mode_still_writes_nothing(self):
         self.helper("set-mode")
         self.assertFalse(os.path.exists(self.config_path()))
@@ -205,6 +249,17 @@ class CommandsTest(ScanHookTest):
         r = self.stop(SNYK_STUB_EXIT="0")
         self.assertNotIn("Current mode:", self.message(r))
 
+    def test_req_51_mode_line_shows_which_scans_are_on(self):
+        r = self.helper("scan", SNYK_STUB_EXIT="0")
+        self.assertIn("Scans on: SAST, SCA", r.stdout)
+        self.write_config(sast=False)
+        r = self.helper("scan", SNYK_STUB_EXIT="0")
+        self.assertIn("Scans on: SCA.", r.stdout)
+        self.write_config(sast=False, sca=False)
+        r = self.helper("scan", SNYK_STUB_EXIT="0")
+        self.assertIn("Scans on: none", r.stdout)
+        self.assertIn("/snyk-mode", r.stdout.splitlines()[-1])
+
     # REQ-47
     def test_req_47_scan_runs_both_without_changes(self):
         r = self.helper("scan", SNYK_STUB_EXIT="0")
@@ -215,6 +270,24 @@ class CommandsTest(ScanHookTest):
         self.assertEqual(len([c for c in calls if c.startswith("test --all-projects")]), 1)
         self.assertIn("SAST: no issues", r.stdout)
         self.assertIn("SCA: no issues", r.stdout)
+
+    def test_req_47_scan_runs_only_enabled_scans(self):
+        self.write_config(sast=False)
+        r = self.helper("scan", SNYK_STUB_EXIT="0")
+        calls = self.calls()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0].startswith("test --all-projects"))
+        self.assertNotIn("SAST", r.stdout)
+        self.assertIn("SCA: no issues", r.stdout)
+
+    def test_req_47_scan_with_both_off_says_so_and_runs_nothing(self):
+        self.write_config(sast=False, sca=False)
+        r = self.helper("scan", SNYK_STUB_EXIT="0")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertIn("No scans are enabled", r.stdout)
+        self.assertIn("/snyk-mode", r.stdout)
+        self.assertNotIn("Snyk scan results", r.stdout)
 
     def test_req_47_scan_reports_findings_as_untrusted(self):
         r = self.helper("scan", SNYK_STUB_EXIT="1", SNYK_STUB_STDOUT=fixture("sast_findings.json"))
@@ -280,6 +353,21 @@ class CommandFilesTest(unittest.TestCase):
         self.assertIn("AskUserQuestion", self.frontmatter(text)["allowed-tools"])
         for word in ("severityThreshold", "timeoutSeconds", "one question at a time", "keep"):
             self.assertIn(word, text)
+
+    def test_req_50_command_file_interview_asks_sast_sca(self):
+        text = self.read("snyk-mode.md")
+        for word in ("sast", "sca", "--sast", "--sca", "Snyk Code"):
+            self.assertIn(word, text)
+        self.assertEqual(text.count("set-config --mode"), 1)
+
+    def test_req_50_scan_docs_do_not_claim_change_dependency(self):
+        skill = os.path.join(os.path.dirname(COMMANDS), "skills", "snyk-scan", "SKILL.md")
+        with open(skill, encoding="utf-8") as f:
+            texts = [self.read("snyk-scan.md"), f.read()]
+        for text in texts:
+            self.assertNotRegex(text, r"(?i)source or dependency|source files|dependency files")
+            self.assertIn("/snyk-mode", text)
+            self.assertIn("sast", text.lower())
 
     def test_req_47_command_file_snyk_scan(self):
         text = self.read("snyk-scan.md")

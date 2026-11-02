@@ -1,6 +1,6 @@
 # Project: Snyk Scan Plugin (SAST + SCA for Claude)
 
-Status: draft v2 (revised after critique, awaiting approval)
+Status: v3, approved 2026-11-02 (v2 plus the 2026-10-31 change: any changed file triggers the enabled scans, `sast`/`sca` switches)
 Owner: Brian Vermeer
 Type: new greenfield project. One repository, `snyk-scan-plugin`, holds the code, tests, and these planning files (`specs/`).
 
@@ -8,7 +8,7 @@ Type: new greenfield project. One repository, `snyk-scan-plugin`, holds the code
 Developers using Claude to change code and dependencies get no automatic security feedback. Vulnerable code or packages can land in a project with no check. The Snyk CLI already does SAST (`snyk code test`) and SCA (`snyk test`), but nothing runs it at the moment Claude changes a project.
 
 ## Goals
-- After every Claude turn that changes source code or dependencies, the relevant Snyk scan runs without the user asking.
+- After every Claude turn that changes any file in the project, the enabled Snyk scans (SAST and SCA) run without the user asking.
 - The user chooses, per project, what happens with results: report only, suggest fixes, or auto-fix.
 - A user with no Snyk CLI installed, or not logged in, can go from zero to a first scan with only approvals, no manual setup.
 
@@ -22,7 +22,7 @@ Developers using Claude to change code and dependencies get no automatic securit
 - Proxy, self-signed certificate, or offline support.
 
 ## Behavior
-The plugin ships two hooks, both implemented in Python 3. `UserPromptSubmit` records a baseline of the project's files when a turn begins. `Stop` fires when Claude finishes the turn, compares the project to the baseline, runs SAST if source files changed and SCA if dependency files changed, then handles results according to the project's mode.
+The plugin ships two hooks, both implemented in Python 3. `UserPromptSubmit` records a baseline of the project's files when a turn begins. `Stop` fires when Claude finishes the turn, compares the project to the baseline, runs SAST and SCA (each one unless switched off in config) if any file changed, then handles results according to the project's mode.
 
 Mode is stored in `.claude/snyk-plugin.json` in the project and set with `/snyk-mode`. The `Stop` hook ends the turn in `report` mode and continues it in `suggest` and `autofix` so Claude can act on the results. Approvals (install, `snyk auth`) are asked by Claude in conversation, not by the hook.
 
@@ -31,20 +31,20 @@ Mode is stored in `.claude/snyk-plugin.json` in the project and set with `/snyk-
 2. **Invalid input:** `.claude/snyk-plugin.json` has broken JSON or an unknown mode. The plugin falls back to `report` and warns.
 3. **Failure/timeout:** The CLI crashes, the network is down, or a scan exceeds the time limit. The user sees an explicit "scan failed" or "timed out" message, never "no issues".
 4. **Not permitted:** The CLI is missing, the user is not authenticated, or Snyk Code is disabled for the org. Install and `snyk auth` need approval. If approval is declined, or the scan cannot proceed, the affected scan is skipped with an explanation and the turn is not blocked.
-5. **Empty/boundary:** The turn changed only a README, or nothing. No scan runs and nothing is printed. A dependency-only turn runs SCA but not SAST. A project with no supported manifest reports "nothing to scan" for SCA.
+5. **Empty/boundary:** The turn changed nothing: no scan runs and nothing is printed. A turn that changed only a README runs both scans (any changed file triggers them). A project with no supported manifest reports "nothing to scan" for SCA. With `"sast": false` in config, only SCA runs.
 6. **Autofix:** In `autofix` mode, Claude fixes findings, the affected scans re-run once, the result is reported, and the edits are not scanned again.
 
 ## Requirements
 Levels: must blocks release; should and may do not.
 
 ### Triggering and change detection
-- **REQ-1 (must):** Given a turn that changed at least one source file, when the turn ends, then `snyk code test` runs exactly once on the project root.
-- **REQ-2 (must):** Given a turn that changed at least one dependency manifest or lockfile, when the turn ends, then `snyk test --all-projects` runs exactly once on the project root.
-- **REQ-3 (must):** Given a turn that changed neither source nor dependency files, when the turn ends, then no Snyk command runs and nothing is printed.
-- **REQ-4 (must):** Given a turn that changed neither source nor dependency files, when the `Stop` hook runs, then it completes in under 500 ms on a project of up to 10,000 files, and so does the `UserPromptSubmit` hook.
-- **REQ-5 (must):** Given a turn that changed only dependency files, when the turn ends, then SAST does not run.
-- **REQ-6 (must):** Given a turn that changed only source files, when the turn ends, then SCA does not run.
-- **REQ-7 (must):** Given the project is a git repo, when the baseline is taken, then it covers tracked files and untracked files that are not git-ignored. Given it is not a git repo, then it covers all files except `node_modules`, `.git`, `dist`, `build`, `target`, `venv`, `.venv`, `__pycache__`.
+- **REQ-1 (must):** Given a turn that changed at least one file and `sast` is enabled (REQ-52), when the turn ends, then `snyk code test` runs exactly once on the project root, whatever the file type.
+- **REQ-2 (must):** Given a turn that changed at least one file and `sca` is enabled (REQ-52), when the turn ends, then `snyk test --all-projects` runs exactly once on the project root, whatever the file type. The two scans are independent: the result of one never decides whether the other runs (see REQ-27).
+- **REQ-3 (must):** Given a turn that changed no files, when the turn ends, then no Snyk command runs and nothing is printed.
+- **REQ-4 (must):** Given a turn that changed no files, when the `Stop` hook runs, then it completes in under 500 ms on a project of up to 10,000 files, and so does the `UserPromptSubmit` hook. Change detection compares file size and modification time only and never hashes content, so a file that was touched but is identical counts as a change.
+- **REQ-5 (must):** Given `sast` is `false` in config, when the turn ends, then SAST does not run, whatever changed, and nothing is printed about it.
+- **REQ-6 (must):** Given `sca` is `false` in config, when the turn ends, then SCA does not run, whatever changed, and nothing is printed about it. Given both are `false`, no Snyk command runs and nothing is printed.
+- **REQ-7 (must):** Given the project is a git repo, when the baseline is taken, then it covers tracked files and untracked files that are not git-ignored, except anything under `.claude/` (so `/snyk-mode` config edits never trigger a scan). Given it is not a git repo, then it covers all files except `.claude`, `node_modules`, `.git`, `dist`, `build`, `target`, `venv`, `.venv`, `__pycache__`.
 - **REQ-8 (must):** Given the `Stop` hook runs and no baseline exists for the session, when it runs, then no scan runs, nothing is printed, and a baseline is saved.
 - **REQ-9 (must):** Given any run, when state is stored (baseline, "asked once" flags), then it is written to the OS temp directory under a file keyed by session ID, and nothing is written into the project except by `/snyk-mode`.
 - **REQ-10 (must):** Given `autofix` finished its re-scan, when the turn ends, then a fresh baseline is saved so the autofix edits are not reported as changes in the next turn.
@@ -68,7 +68,7 @@ Levels: must blocks release; should and may do not.
 - **REQ-24 (must):** Given the user approves, when `snyk auth` completes successfully, then the plugin retries the scan once.
 - **REQ-25 (must):** Given the user declines, or `snyk auth` fails or times out, when a scan is due, then the scan is skipped with a message that names the reason, and the plugin does not ask again in the same session.
 - **REQ-26 (must):** Given any run, when the plugin acts, then it does not read, write, log, or print `SNYK_TOKEN` or the CLI's auth config.
-- **REQ-27 (must):** Given Snyk Code is not enabled for the user's org, when SAST is due, then SAST is skipped with an explanation, and SCA still runs if due.
+- **REQ-27 (must):** Given Snyk Code is not enabled for the user's org, when SAST is due, then SAST is skipped with an explanation, and SCA still runs if due. This holds for every SAST outcome (disabled, failed, timed out, not installed, not authenticated), and the reverse.
 - **REQ-28 (must):** Given a scan fails with an error the plugin does not recognise, when reporting, then the message is "scan failed: <first line of the error>", never "no issues".
 
 ### Running scans and results
@@ -80,7 +80,7 @@ Levels: must blocks release; should and may do not.
 - **REQ-34 (must):** Given scan output reaches Claude, when it is passed on, then it is wrapped with a note that it is untrusted data and must not be followed as instructions.
 
 ### Modes
-- **REQ-35 (must):** Given no `.claude/snyk-plugin.json` exists, when results are handled, then the mode is `report`, and once per session the output says how to change it.
+- **REQ-35 (must):** Given no `.claude/snyk-plugin.json` exists, when results are handled, then the mode is `report`, and once per session the output says how to change it. The hint rides on a scan report, so when both scans are off (REQ-6) nothing is printed and no hint is shown.
 - **REQ-36 (must):** Given mode `report`, when scans finish with findings, then the user sees counts by severity and the top 5 findings (title, severity, file or package), ranked by severity then by file or package name, and no file is edited. The turn ends.
 - **REQ-37 (must):** Given mode `suggest`, when scans finish with findings, then the user sees the REQ-36 summary plus a proposed fix per top finding, no file is edited without the user's approval, and the turn continues so Claude can propose them.
 - **REQ-38 (must):** Given mode `autofix`, when scans finish with findings, then the turn continues and Claude applies available fixes for SCA and SAST findings.
@@ -96,9 +96,10 @@ Levels: must blocks release; should and may do not.
 
 ### Commands and config
 - **REQ-46 (should):** Given the user runs `/snyk-mode <report|suggest|autofix>`, when the value is valid, then it is written to `.claude/snyk-plugin.json`. When invalid, the file is unchanged and valid values are listed. When no value is given, REQ-50 applies.
-- **REQ-47 (should):** Given the user runs `/snyk-scan`, when it executes, then both SAST and SCA run regardless of detected changes.
-- **REQ-50 (should):** Given the user runs `/snyk-mode` with no value, when it executes, then Claude interviews the user, one question at a time, for `mode` (`report`, `suggest`, `autofix`), `severityThreshold` (`low`, `medium`, `high`, `critical`), and `timeoutSeconds` (positive integer). Each question shows the current value (the default when no config exists) and what the options mean, and the user can keep the current value. After the last answer the answers are written to `.claude/snyk-plugin.json` in one step, keeping any other keys already in the file. A value that fails validation is not written and the user is told which one and why. If the user stops before the end, nothing is written. The config schema does not change.
-- **REQ-51 (should):** Given the user runs `/snyk-scan`, when the results are shown, then the output also states the current mode, and says it can be changed with `/snyk-mode`. This is shown on every run, not once per session, and it does not change what the scan does in any mode (REQ-47).
+- **REQ-47 (should):** Given the user runs `/snyk-scan`, when it executes, then every enabled scan (REQ-52) runs regardless of detected changes. Both run by default. Given both are switched off, it runs nothing and says "No scans are enabled. Turn them on with /snyk-mode."
+- **REQ-50 (should):** Given the user runs `/snyk-mode` with no value, when it executes, then Claude interviews the user, one question at a time, for `mode` (`report`, `suggest`, `autofix`), `severityThreshold` (`low`, `medium`, `high`, `critical`), `timeoutSeconds` (positive integer), `sast` (on or off), and `sca` (on or off). Each question shows the current value (the default when no config exists) and what the options mean, and the user can keep the current value. After the last answer the answers are written to `.claude/snyk-plugin.json` in one step, keeping any other keys already in the file. A value that fails validation is not written and the user is told which one and why. If the user stops before the end, nothing is written. The config schema gains `sast` and `sca` (REQ-52).
+- **REQ-51 (should):** Given the user runs `/snyk-scan`, when the results are shown, then the output also states the current mode and which scans are on (SAST, SCA, or none), and says mode and scans can be changed with `/snyk-mode`. This is shown on every run, not once per session, and it does not change what the scan does in any mode (REQ-47).
+- **REQ-52 (must):** Given `sast` and `sca` in `.claude/snyk-plugin.json`, when config is loaded, then each is a boolean that defaults to `true` when absent or when there is no config file. A non-boolean value is treated as `true` and a warning names the key. `/snyk-mode` can set both (REQ-46, REQ-50), and the helper's `get-config` reports them.
 - **REQ-48 (should):** Given `timeoutSeconds` in config is a positive integer, when a scan runs, then it is the timeout instead of 120.
 - **REQ-49 (may):** Given `severityThreshold` in config, when reporting, then findings below it are excluded. Default is `low` (everything reported).
 
@@ -113,9 +114,7 @@ Levels: must blocks release; should and may do not.
 ## Technical context
 - Stack: Claude plugin (manifest, hooks, commands, skill), hook scripts in Python 3 standard library only.
 - Exit codes: `snyk` returns 0 (no issues), 1 (issues found), 2 (failure), 3 (no supported projects).
-- Dependency files (initial list): `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements.txt`, `Pipfile(.lock)`, `poetry.lock`, `pyproject.toml`, `pom.xml`, `build.gradle(.kts)`, `go.mod`, `go.sum`, `Gemfile(.lock)`, `*.csproj`, `packages.lock.json`, `composer.json`, `composer.lock`.
-- Source files (final list, matched case-insensitively on the file extension; REQ-1 depends on it): `.js .jsx .mjs .cjs .ts .tsx .mts .cts .vue .py .java .kt .kts .scala .groovy .go .rb .php .cs .vb .c .h .cc .cpp .cxx .hpp .m .mm .swift .dart .rs .ex .exs .cls .trigger`. Added in T3 from Snyk Code's supported languages; review against current Snyk docs before 0.1.0. A path that is a dependency file (list above) is never also a source file. `.html` is deliberately excluded for now (every markup edit would trigger SAST).
-- Dependency file matching: exact file name, except `*.csproj` (extension match). Paths use `/` or `\` separators; only the last component is matched.
+- No file classification: any added or modified file counts as a change. Which scans run is decided only by the `sast` and `sca` config values.
 - Layout (one repo; code and planning files together):
 
 ```
@@ -125,7 +124,7 @@ snyk-scan-plugin/
   hooks/snapshot.py    # UserPromptSubmit baseline
   hooks/scan.py        # Stop: diff, scan, report
   hooks/helper.py      # install, auth, decline, set-mode, scan (called after approval and by commands)
-  hooks/lib/           # files, baseline, state, config, cli, install, standalone, report, ...
+  hooks/lib/           # baseline, state, config, cli, install, standalone, report, ...
   commands/snyk-mode.md
   commands/snyk-scan.md
   skills/snyk-scan/SKILL.md   # how to summarise, suggest, fix
@@ -144,8 +143,8 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - Never: read or log tokens, auto-install without approval, edit files in `report` or `suggest` mode without approval, scan outside the project root, contact a host other than `downloads.snyk.io` for downloads.
 
 ## Success criteria
-- Editing a source file in a project with the plugin installed produces a SAST result at the end of the turn with no manual action.
-- Editing a lockfile produces an SCA result and not a SAST result.
+- Editing any file in a project with the plugin installed produces a SAST result and an SCA result (each if enabled) at the end of the turn with no manual action.
+- With `"sast": false`, the same edit produces an SCA result and no SAST result.
 - On a machine with no CLI or no login, approvals alone lead to a working first scan.
 - All must-level REQs have passing tests on macOS and Linux in GitHub Actions (Windows is future work), and the no-loop test passes under `autofix`.
 
@@ -153,7 +152,7 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - [ ] Python launcher: which command do the hooks call (`python3`, `python`, or `py -3`), and how is it chosen per OS? (plan)
 - [x] Alpine/musl detection: on Linux the plugin uses `snyk-alpine*` when `/etc/alpine-release` exists or `ldd --version` output mentions `musl`, otherwise `snyk-linux*`. CPU: `x86_64`/`AMD64` is x64, `arm64`/`aarch64` is arm64, anything else has no asset (REQ-22). Windows uses `snyk-win.exe` for any CPU. (settled in T10)
 - [ ] Exact CLI error strings that identify "not authenticated" and "Snyk Code not enabled". (plan)
-- [x] Exact source-file extension list. (settled in T3, see Technical context)
+- [x] Exact source-file extension list. (obsolete since 2026-10-31: files are no longer classified)
 - [ ] Repo location (e.g. which GitHub org): TBD. Does not block the plan. (Brian)
 
 ## Decisions
@@ -166,7 +165,7 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - Auth: ask, run `snyk auth`, retry once.
 - First release version is 0.1 (written `0.1.0` in `plugin.json`). The plugin is versioned from the start.
 - CI is a GitHub Actions workflow running the test suite on macOS, Linux, and Windows runners. (An earlier "no CI for now" was reversed.)
-- v0.1 bootstrap scope: README, LICENSE, version in `plugin.json`, GitHub Actions CI, and a repo `CLAUDE.md` updated with real commands once code exists. The changelog is deferred to 0.2.
+- v0.1 bootstrap scope: README, LICENSE, version in `plugin.json`, GitHub Actions CI, and a repo `CLAUDE.md` updated with real commands once code exists. The changelog is kept below from 0.1.1 on.
 - A README ships in v1 and must stay in sync with the code, specs, and features. A change to a requirement, command, mode, or config key is not done until the README reflects it.
 - One repository: code, tests, and planning files (`specs/`, plus the repo `CLAUDE.md`) all live in `snyk-scan-plugin`. There is no separate specs repo. Repo name is `snyk-scan-plugin`. License is MIT. Distribution is both the plugin marketplace and GitHub install.
 - REQ-4 budget confirmed: under 500 ms for each hook on a project of up to 10,000 files.
@@ -181,3 +180,6 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 - Python 3 is installed on user machines.
 - "Cycle" means one Claude turn (confirmed).
 - Windows on x64 uses `snyk-win.exe` (the only Windows asset in `release.json`); Windows on ARM runs it under emulation.
+
+## Changelog
+- **0.1.1 (2026-11-02):** any changed file triggers both scans (no source/dependency classification, REQ-1 to 6). Config switches `sast` and `sca`, default on (REQ-52), set through the `/snyk-mode` interview. `/snyk-scan` runs the enabled scans and says so when none are enabled (REQ-47). Baseline records size and mtime only, no hashing (REQ-4), and excludes `.claude/` (REQ-7). Snyk Code "not supported for your organization" is recognised as SAST disabled (REQ-27, SCA still runs). The real unauthenticated CLI message is matched exactly (REQ-23).

@@ -1,9 +1,9 @@
 ---
-description: Run both Snyk scans (SAST and SCA) on the project now, whatever changed
+description: Run every enabled Snyk scan (SAST and SCA) on the project now, whatever changed
 allowed-tools: Bash
 ---
 
-Run both Snyk scans on the project root now.
+Run every enabled Snyk scan on the project root now. Both are on by default; `sast` and `sca` can be switched off with `/snyk-mode`.
 
 Run this command with the Bash tool:
 

@@ -23,7 +23,7 @@ Commands (run from the repo root):
 
 Files in `specs/`, in order of authority:
 
-- `specs/spec.md`: source of truth (draft v2, requirements REQ-1 to REQ-51, decisions, open questions).
+- `specs/spec.md`: source of truth (v3, requirements REQ-1 to REQ-52, decisions, open questions).
 - `specs/plan.md`: approach, components, REQ coverage, and the T1 hook-runtime note.
 - `specs/tasks.md`: ordered tasks, one at a time. Mark a task done only when its verification passes.
 
@@ -33,14 +33,14 @@ If the spec turns out wrong, change the spec first and the code second. Don't pi
 
 A Claude Code / Cowork plugin that runs Snyk scans automatically after each Claude turn:
 
-- **SAST** (`snyk code test`) if source files changed. **SCA** (`snyk test --all-projects`) if dependency manifests or lockfiles changed. Each runs at most once per turn, on the project root only. Neither runs if the turn changed nothing relevant.
+- If the turn changed any file (no source-versus-dependency classification), run **SAST** (`snyk code test`) and **SCA** (`snyk test --all-projects`), each only if enabled by the `sast` / `sca` config booleans (default true). Each runs at most once per turn, on the project root only, and independently of the other's result. No change, or both off, means nothing runs and nothing is printed.
 - Out of scope: IaC, container, secrets scanning, `snyk monitor`, a custom MCP server, and anything that reads or stores Snyk tokens.
 
 ## Architecture
 
-- Hooks are Python 3, standard library only. `UserPromptSubmit` records a baseline of file hashes at turn start. `Stop` diffs against it, decides which scans to run, runs the CLI, and reports.
-- The baseline covers git tracked plus untracked-not-ignored files, or a fixed exclusion list outside git. State (baseline, "asked once" flags) lives in the OS temp directory keyed by session ID, never in the project.
-- Per-project mode lives in `.claude/snyk-plugin.json`: `report` (default), `suggest`, `autofix`, plus optional `severityThreshold` and `timeoutSeconds` (default 120). `/snyk-mode` sets it, `/snyk-scan` forces both scans.
+- Hooks are Python 3, standard library only. `UserPromptSubmit` records a baseline of file size and mtime (no hashing, for the 500 ms budget) at turn start. `Stop` diffs against it, runs the enabled scans if anything changed, runs the CLI, and reports.
+- The baseline covers git tracked plus untracked-not-ignored files, or a fixed exclusion list outside git; `.claude/` is always excluded. State (baseline, "asked once" flags) lives in the OS temp directory keyed by session ID, never in the project.
+- Per-project mode lives in `.claude/snyk-plugin.json`: `report` (default), `suggest`, `autofix`, plus optional `severityThreshold`, `timeoutSeconds` (default 120), and booleans `sast` and `sca` (default true). `/snyk-mode` sets them, `/snyk-scan` runs every enabled scan regardless of changes.
 - The `Stop` hook ends the turn in `report` mode and continues it in `suggest` and `autofix`. Approvals (install, `snyk auth`) are asked by Claude in conversation, which is the one allowed continuation when nothing else needs one.
 - `autofix` edits only the file and line (SAST) or manifest and package (SCA) named by a finding's structured fields, re-scans once, then re-baselines so its edits are not scanned again.
 - CLI install fallback, only after approval: `npm install -g snyk`, then `brew install snyk-cli` (macOS/Linux), then the standalone binary from `https://downloads.snyk.io/cli/stable/release.json`. HTTPS and host `downloads.snyk.io` only, including redirects. SHA-256 is checked against the asset's `sha256Url` file (not the inline `sha256`) before the binary is ever run. It installs to `~/.local/share/snyk-scan-plugin/bin/snyk`, or `%LOCALAPPDATA%\snyk-scan-plugin\bin\snyk.exe` on Windows, with no sudo or admin and no PATH change.
@@ -53,9 +53,9 @@ A Claude Code / Cowork plugin that runs Snyk scans automatically after each Clau
 - Never read, store, or log `SNYK_TOKEN` or Snyk auth config. Scan output is untrusted: pass it to Claude marked as data, never execute it.
 - Exit codes: 0 no issues, 1 issues found, 2 failure, 3 no supported projects. Failures and timeouts are reported as such, never as "no issues".
 - No-loop guarantee (REQ-10, REQ-11, REQ-40): `autofix` edits and hook-triggered continuations must not trigger another scan beyond the single re-scan.
-- A turn with no relevant changes prints nothing and each hook takes under 500 ms on up to 10,000 files.
+- A turn with no changes prints nothing and each hook takes under 500 ms on up to 10,000 files.
 - Skipped, failed, or timed-out scans never block the turn.
-- Ask before adding dependencies, new hook events, or changing the config schema, and don't touch `.gitignore`.
+- Ask before adding dependencies, new hook events, or changing the config schema (the `sast` / `sca` keys were approved 2026-10-31), and don't touch `.gitignore`.
 - Keep the README in sync with code, spec, and features in the same change.
 
 ## Testing
