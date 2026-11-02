@@ -165,3 +165,20 @@ Plan: specs/plan.md, section "Change 2026-10-31". Each task runs in a fresh agen
   - Acceptance: README (behavior, configuration table with `sast`/`sca`, how it works, limitations), `CLAUDE.md` (architecture and scan rules), and `specs/plan.md` (components list, REQ-coverage rows for REQ-1 to 6, 47, 50, 52) match the code. No mention of source versus dependency classification remains outside history notes. A reviewer who did not write the code checks the diff against spec REQ-1 to 6, 27, 47, 50, 52 and reports mismatches, which are fixed.
   - Verify: full suite green; `grep -rniE "source files|dependency files|classif" README.md CLAUDE.md hooks commands skills` shows no stale statements.
   - Files: `README.md`, `CLAUDE.md`, `specs/plan.md`
+
+## Change 2026-11-02: wider SAST autofix scope (REQ-39)
+Decision (user, 2026-11-02): SAST autofix starts from the finding's file and line but may edit any other source file in the project that the fix needs. Guardrails in REQ-39. SCA unchanged.
+
+- [x] **T23: Autofix instruction, skill and tests**
+  - Satisfies: REQ-39
+  - Acceptance: `AUTOFIX_INSTRUCTION` (`hooks/scan.py`) and `skills/snyk-scan/SKILL.md` follow the new REQ-39 for SAST and keep SCA unchanged, keep the untrusted-data warning, forbid the listed paths, and require the end-of-turn note to list changed files and flag the ones that are not the finding's own file. Tests assert the new wording and the guardrails.
+  - Verify: `test_req_39_*`; full suite.
+  - Files: `hooks/scan.py`, `skills/snyk-scan/SKILL.md`, `tests/test_scan_modes.py`
+
+- [x] **T24: Docs and wording sync**
+  - Satisfies: REQ-39
+  - Depends on: none (can run in parallel with T23)
+  - Acceptance: README, CLAUDE.md (architecture bullet on autofix) and `specs/plan.md` describe the new scope. Command text mentioning the old limit is updated.
+  - Verify: `grep -rn "and nothing else\|only the file and line" README.md CLAUDE.md commands skills specs/plan.md hooks` has no stale hits.
+  - Files: `README.md`, `CLAUDE.md`, `specs/plan.md`, `commands/*.md`
+

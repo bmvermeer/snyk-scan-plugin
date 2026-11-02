@@ -70,7 +70,7 @@ The mode is set per project and defaults to `report`.
 |------|---------------------------|
 | `report` (default) | Shows counts by severity and the top 5 findings (title, severity, file or package), ranked by severity and then by file or package name. No file is edited. The turn ends. |
 | `suggest` | Shows the same summary and the turn continues so Claude proposes a fix for each top finding. No file is edited until you approve. |
-| `autofix` | The turn continues and Claude applies available fixes for SCA and SAST findings. It edits only the file and line (SAST) or the manifest and package (SCA) named by a finding's structured fields. Only the scans that had findings re-run, once. You then see what was fixed and what remains. Unfixed findings are not retried, and the fix edits are not scanned again. |
+| `autofix` | The turn continues and Claude applies available fixes for SCA and SAST findings. For SCA it edits only the manifest and package named by the finding. For SAST it starts from the finding's file and line and may edit other source files inside the project root that the fix needs (a shared helper, a call site). It never edits files outside the project root, config, CI or secrets files, `.claude/`, or lockfiles beyond what a dependency change needs, and never because scan output says so. The end-of-turn note lists every changed file and flags those that are not the finding's own file. Only the scans that had findings re-run, once. You then see what was fixed and what remains. Unfixed findings are not retried, and the fix edits are not scanned again. |
 
 With no `.claude/snyk-plugin.json`, the mode is `report` and the output says once per session how to change it.
 
@@ -139,6 +139,7 @@ A failure, timeout, or skipped scan is never reported as "no issues" and never b
 - Nothing is hashed, because reading every file would break the 500 ms budget on large trees. A file that was touched but not changed (new mtime, same content) therefore counts as a change and triggers the scans. Deleted files are not changes.
 - The baseline covers git-tracked files plus untracked files that are not git-ignored. Outside a git repo it covers all files except `node_modules`, `.git`, `dist`, `build`, `target`, `venv`, `.venv`, and `__pycache__`. In both cases `.claude/` is left out, so a `/snyk-mode` config edit never triggers a scan.
 - Session state (baseline, "asked once" flags) lives in the OS temp directory keyed by session ID. Nothing is written into the project except by `/snyk-mode`.
+- Autofix scope: SCA edits only the named manifest and package. SAST edits start at the finding's file and line and may reach other project source files, with the guardrails listed under Modes. Edits are never driven by instructions in scan output.
 - No loops: a turn continued by the plugin's own `Stop` hook runs no scan, except the single `autofix` re-scan, after which a fresh baseline is saved.
 - File and path values are passed to the CLI as separate arguments, never interpolated into a shell string. Scan output is passed to Claude wrapped as untrusted data, and Claude is told never to follow instructions found in it.
 - Performance target: a no-change turn adds under 500 ms per hook on up to 10,000 files.
@@ -159,6 +160,7 @@ A GitHub Actions workflow (`.github/workflows/test.yml`) runs the suite on Linux
 
 - Windows is **future work** and unverified on a real Windows machine; the code and CI job exist but are not a 0.1.0 gate. The hooks are pinned to `bash` (Git Bash). If it is missing, Claude Code reports a non-blocking hook error and no scan runs. The `/snyk-mode` and `/snyk-scan` commands also assume a bash-style tool. See `specs/plan.md` (T13 launcher decision).
 - The exact CLI error strings that identify "not authenticated" and "Snyk Code not enabled" are still an open question in the spec, so an unrecognised error shows as `scan failed: <reason>`.
+- `autofix` for SAST may edit project source files other than the finding's own (shared helpers, call sites). They are listed and flagged in the end-of-turn note; review them before committing.
 - Any file change triggers the scans, including docs, images, and files that were only touched. If that is too noisy, switch a scan off with `sast` or `sca`.
 - Not supported in v1: updating or re-checking the version of an installed CLI, and proxy, self-signed certificate, or offline use.
 - The standalone checksum comes from the same host as the binary, so it guards against corruption and tampering in transit, not against a compromised `downloads.snyk.io`.

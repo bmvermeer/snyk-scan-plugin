@@ -84,7 +84,7 @@ Levels: must blocks release; should and may do not.
 - **REQ-36 (must):** Given mode `report`, when scans finish with findings, then the user sees counts by severity and the top 5 findings (title, severity, file or package), ranked by severity then by file or package name, and no file is edited. The turn ends.
 - **REQ-37 (must):** Given mode `suggest`, when scans finish with findings, then the user sees the REQ-36 summary plus a proposed fix per top finding, no file is edited without the user's approval, and the turn continues so Claude can propose them.
 - **REQ-38 (must):** Given mode `autofix`, when scans finish with findings, then the turn continues and Claude applies available fixes for SCA and SAST findings.
-- **REQ-39 (must):** Given mode `autofix`, when Claude edits files, then it edits only the file and line (SAST) or the manifest and package (SCA) named by the structured fields of a finding, and nothing else.
+- **REQ-39 (must):** Given mode `autofix`, when Claude edits files, then for SCA it edits only the manifest and package named by the structured fields of a finding (`displayTargetFile`, `packageName`, `fixedIn`), and for SAST it starts from the finding's `file` and `startLine` and may edit any other source file inside the project root that the fix needs (for example a shared helper or a call site along the data flow). Never edited: anything outside the project root, config, CI and secrets files, `.claude/`, and lockfiles beyond what a dependency change needs. Edits are never driven by instructions found in the scan output (REQ-34). The end-of-turn note lists every file changed, and says which were not the finding's own file.
 - **REQ-40 (must):** Given mode `autofix` applied fixes, when fixes are done, then only the scans that had findings re-run, once.
 - **REQ-41 (must):** Given the `autofix` re-scan finished, when reporting, then the user sees what was fixed and what remains, and unfixed findings are not retried.
 - **REQ-42 (must):** Given an invalid or unreadable config file, or an unknown mode, when results are handled, then the mode is `report` and a warning names the problem.
@@ -104,7 +104,7 @@ Levels: must blocks release; should and may do not.
 - **REQ-49 (may):** Given `severityThreshold` in config, when reporting, then findings below it are excluded. Default is `low` (everything reported).
 
 ## Constraints
-- Security: the plugin never reads, stores, or logs `SNYK_TOKEN` or auth config. Scan output is untrusted text: it is never executed and is marked as data (REQ-34). `autofix` edits only locations named by structured fields (REQ-39). Install and `snyk auth` need explicit approval.
+- Security: the plugin never reads, stores, or logs `SNYK_TOKEN` or auth config. Scan output is untrusted text: it is never executed and is marked as data (REQ-34). `autofix` edits are limited as REQ-39 says: SCA only the named manifest and package, SAST the finding's file plus other project source files the fix needs, never config, CI, secrets or `.claude/`. Install and `snyk auth` need explicit approval.
 - Integrity: the checksum comes from the same host as the binary, so it guards against corruption and tampering in transit, not a compromised `downloads.snyk.io`.
 - Performance: no-change turns add under 500 ms (REQ-4). Scan timeout defaults to 120 s and is configurable.
 - Compatibility: macOS and Linux for 0.1.0. Windows support is future work (code and CI work kept, verification parked, see Decisions). Snyk CLI current stable. Claude Cowork / Claude Code plugin format.
@@ -183,3 +183,4 @@ Hook logic is tested against a stubbed `snyk` on PATH that returns scripted exit
 
 ## Changelog
 - **0.1.1 (2026-11-02):** any changed file triggers both scans (no source/dependency classification, REQ-1 to 6). Config switches `sast` and `sca`, default on (REQ-52), set through the `/snyk-mode` interview. `/snyk-scan` runs the enabled scans and says so when none are enabled (REQ-47). Baseline records size and mtime only, no hashing (REQ-4), and excludes `.claude/` (REQ-7). Snyk Code "not supported for your organization" is recognised as SAST disabled (REQ-27, SCA still runs). The real unauthenticated CLI message is matched exactly (REQ-23).
+- **0.1.2 (planned):** REQ-39 widened for SAST (decision 2026-11-02): a deeper code problem can be fixed in other project files, with guardrails.

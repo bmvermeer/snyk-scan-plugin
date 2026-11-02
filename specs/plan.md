@@ -59,7 +59,7 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 - Baseline: `{ "<relative path>": "<sha256>" }`, stored with the session state.
 - State file: `{ baseline, install_declined, auth_declined, hint_shown, rescan_done, pending: null|"install"|"auth" }`.
 - Config: `{ "mode": "report|suggest|autofix", "severityThreshold": "low|medium|high|critical", "timeoutSeconds": int }`. Unknown keys ignored, unknown mode falls back to `report`.
-- Finding (internal): `{ scan, severity, id, title, file, line, package, fixedIn }`. Only structured fields drive `autofix`.
+- Finding (internal): `{ scan, severity, id, title, file, line, package, fixedIn }`. SCA `autofix` is driven by the structured fields only. SAST `autofix` starts from `file`/`line` and may edit other project source files (REQ-39, 2026-11-02), never driven by scan-output instructions.
 
 ## Order and parallelism
 1. T1 spike first: it settles runtime facts everything else depends on.
@@ -80,7 +80,7 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 - R4: Hashing every file would exceed 500 ms on large trees. -> The baseline records size and mtime only and never hashes (user decision 2026-10-31); a touched-but-identical file counts as a change. Benchmark test at 10,000 files (REQ-4).
 - R5: GitHub Actions needs a remote. -> Resolved: the remote exists at https://github.com/bmvermeer/snyk-scan-plugin. Everything (code, tests, `specs/`) is in that one repo. Remaining: confirm the workflow runs green (T14).
 - R6: REQ-43 versus the approval prompt both continue or end turns. -> Spec amended: one allowed continuation for approvals.
-- R7: Full scan output passed to Claude is a prompt-injection path (accepted decision). -> REQ-34 marking plus REQ-39 location limit, tested with a hostile fixture.
+- R7: Full scan output passed to Claude is a prompt-injection path (accepted decision). -> REQ-34 marking plus REQ-39 edit limits (SAST may touch other project source files, never config, CI, secrets or `.claude/`), tested with a hostile fixture.
 
 ## Requirement coverage
 | REQ | Covered by | Verified by |
@@ -123,7 +123,7 @@ Windows verification is future work. Nothing is removed: T1's Windows run, T13, 
 | REQ-36 | report.py, scan.py | `test_req_36_counts_by_severity`, `test_req_36_top_5_ranked` |
 | REQ-37 | report.py, scan.py | `test_req_37_suggest_continues_with_summary_and_no_edit_instruction`, `test_req_37_suggest_continuation_runs_nothing` |
 | REQ-38 | scan.py, SKILL.md | `test_req_38_autofix_continues_with_full_output_as_untrusted_data`, `test_req_38_autofix_hostile_output_cannot_close_wrapper` |
-| REQ-39 | SKILL.md, report.py | `test_req_39_autofix_instruction_limits_edits_to_named_locations` |
+| REQ-39 | SKILL.md, report.py | `test_req_39_autofix_instruction_limits_edits_to_named_locations` (wording to follow the widened SAST scope, T24) |
 | REQ-40 | scan.py | `test_req_40_rescan_only_scans_that_had_findings` |
 | REQ-41 | report.py | `test_req_41_fixed_and_remaining`, `test_req_41_reports_fixed_and_remaining` |
 | REQ-42 | config.py | `test_req_42_broken_json`, `test_req_42_unknown_mode` |
