@@ -57,6 +57,16 @@ A Claude Code / Cowork plugin that runs Snyk scans automatically after each Clau
 - Skipped, failed, or timed-out scans never block the turn.
 - Ask before adding dependencies, new hook events, or changing the config schema (the `sast` / `sca` keys were approved 2026-10-31), and don't touch `.gitignore`.
 - Keep the README in sync with code, spec, and features in the same change.
+- Keep user-facing wording in the scripts in sync with every change: hints, report and error messages, helper output, command and skill text (`commands/*.md`, `skills/`), and the tests that assert them. When behavior or config changes, grep for the old wording and fix it in the same change.
+
+## Way of working
+
+- Spec first, then plan and tasks (`specs/`), then code. Record decisions that the user made in the spec or plan.
+- Do each task in a fresh agent (Agent tool), not in the main session. The main session writes the spec, plan and tasks, briefs the agents, and verifies their results (run the full suite yourself, don't just trust a report).
+- Run tasks in parallel when they are independent and touch different files (for example spec, README and script-wording audits). Run them one after another when one depends on another.
+- Brief each agent with: the task and its REQs, what is already done, the files it may touch, the files it must not touch, and the rules (no commits, no pushes, no git stash, no new dependencies, don't touch `.gitignore`).
+- Every change ends with a docs-and-wording sync: spec, README, CLAUDE.md and script wording match the code. Doing this as parallel fresh agents is fine.
+- Commit, push, tag, and version bumps only when the user asks.
 
 ## Testing
 
